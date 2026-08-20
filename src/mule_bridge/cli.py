@@ -10,7 +10,7 @@ from rich.table import Table
 
 from . import __version__, config, discovery
 from .config import BridgeConfig, ProjectPair
-from .errors import BridgeError, DiscoveryError
+from .errors import BridgeError, ConfigError, DiscoveryError, NonInteractiveError
 from .sync import Direction, SyncPlan, sync_all
 
 app = typer.Typer(
@@ -27,12 +27,26 @@ def _fail(exc: BridgeError) -> typer.Exit:
     return typer.Exit(1)
 
 
-def _choose(title: str, options: list[str], *, default: int = 1) -> int:
-    """Mostra as opções encontradas e pede a escolha — nunca adivinha sozinha."""
+def _choose(title: str, options: list[str], *, flag: str, default: int = 1) -> int:
+    """Mostra as opções encontradas e pede a escolha — nunca adivinha sozinha.
+
+    Sem terminal interativo (extensão de IDE, agente de IA, CI) não há como perguntar: o
+    erro lista as opções encontradas e ensina a flag que dispensa o prompt.
+    """
     console.print(f"\n[bold]{title}[/]")
     for i, opt in enumerate(options, 1):
         console.print(f"  [cyan]{i}[/]. {opt}")
-    choice = typer.prompt("Escolha", default=str(default))
+
+    try:
+        choice = typer.prompt("Escolha", default=str(default))
+    except (typer.Abort, EOFError, OSError) as exc:
+        # Sem terminal para ler a resposta (extensão de IDE, agente de IA, CI): em vez de
+        # abortar sem explicação, ensina a flag que dispensa o prompt.
+        exemplo = f"{flag} {options[0].split()[0]}" if options else flag
+        raise NonInteractiveError(
+            f"{title.rstrip(':')} — não há terminal interativo para perguntar.\n"
+            f"Repita o comando escolhendo pela flag, ex: {exemplo}"
+        ) from exc
     try:
         idx = int(choice)
     except ValueError:
@@ -40,6 +54,26 @@ def _choose(title: str, options: list[str], *, default: int = 1) -> int:
     if not 1 <= idx <= len(options):
         raise typer.BadParameter(f"Escolha entre 1 e {len(options)}.")
     return idx - 1
+
+
+def _pick(
+    title: str, options: list[str], *, flag: str, given: str | None = None, default: int = 1
+) -> int:
+    """Resolve uma escolha pelo nome vindo da flag, ou cai no prompt interativo.
+
+    A comparação é pelo primeiro token de cada rótulo, que é o nome da pasta — assim
+    `--raml pedidos-raml` casa com o rótulo "pedidos-raml  (sugerido)".
+    """
+    if given is None:
+        return _choose(title, options, flag=flag, default=default)
+
+    alvo = given.strip().lower()
+    for i, opt in enumerate(options):
+        if opt.split()[0].lower() == alvo:
+            return i
+
+    disponiveis = ", ".join(o.split()[0] for o in options)
+    raise ConfigError(f"{flag} {given!r} nao encontrado. Opcoes: {disponiveis}")
 
 
 def _resolve_root(work_root: Path | None) -> Path:
@@ -72,9 +106,26 @@ def init(
     studio_root: Path | None = typer.Option(
         None, "--studio-root", "-s", help="Workspace do Studio (pula a busca automática)."
     ),
+    api_name: str | None = typer.Option(
+        None, "--api", help="Nome da pasta da API, em vez de escolher no prompt."
+    ),
+    raml_name: str | None = typer.Option(
+        None, "--raml", help="Nome da pasta do RAML, ou 'nenhuma' para nao sincronizar."
+    ),
+    studio_api_name: str | None = typer.Option(
+        None, "--studio-api", help="Nome do projeto no workspace correspondente a API."
+    ),
+    studio_raml_name: str | None = typer.Option(
+        None, "--studio-raml", help="Nome do projeto no workspace correspondente ao RAML."
+    ),
     force: bool = typer.Option(False, "--force", help="Sobrescreve uma config existente."),
 ) -> None:
-    """Pareia esta pasta de trabalho com um projeto do workspace do Studio."""
+    """Pareia esta pasta de trabalho com um projeto do workspace do Studio.
+
+    Sem as flags de escolha, pergunta interativamente. Passando `--api`, `--raml`,
+    `--studio-api` e `--studio-raml`, roda sem prompt nenhum — que é como um agente de IA
+    ou uma extensão de IDE conseguem executá-lo.
+    """
     work_root = _resolve_root(work_root)
     if config.exists(work_root) and not force:
         err.print(
@@ -91,7 +142,14 @@ def init(
                 f"Nenhum projeto Mule encontrado em {work_root} "
                 "(esperado: pasta com pom.xml e src/main/mule)."
             )
-        api = apis[_choose("Projeto de API nesta pasta de trabalho:", [p.name for p in apis])]
+        api = apis[
+            _pick(
+                "Projeto de API nesta pasta de trabalho:",
+                [p.name for p in apis],
+                flag="--api",
+                given=api_name,
+            )
+        ]
 
         raml_local = discovery.guess_raml_sibling(api, local)
         ramls = [p for p in local if p.kind == "raml"]
@@ -99,7 +157,13 @@ def init(
             labels = [f"{p.name}{'  (sugerido)' if p is raml_local else ''}" for p in ramls]
             labels.append("nenhuma — não sincronizar RAML")
             default = ramls.index(raml_local) + 1 if raml_local else len(labels)
-            idx = _choose("Pasta do RAML correspondente:", labels, default=default)
+            idx = _pick(
+                "Pasta do RAML correspondente:",
+                labels,
+                flag="--raml",
+                given=raml_name,
+                default=default,
+            )
             raml_local = ramls[idx] if idx < len(ramls) else None
 
         # Lado do workspace do Studio.
@@ -111,7 +175,11 @@ def init(
                     "Informe com --studio-root."
                 )
             studio_root = workspaces[
-                _choose("Workspace do Anypoint Studio:", [str(w) for w in workspaces])
+                _choose(
+                    "Workspace do Anypoint Studio:",
+                    [str(w) for w in workspaces],
+                    flag="--studio-root",
+                )
             ]
         studio_root = studio_root.expanduser().resolve()
 
@@ -119,12 +187,24 @@ def init(
         if not remote:
             raise DiscoveryError(f"Nenhum projeto encontrado em {studio_root}.")
         names = [f"{p.name}  [{p.kind}]" for p in remote]
-        studio_api = remote[_choose(f"Projeto no workspace correspondente a {api.name}:", names)]
+        studio_api = remote[
+            _pick(
+                f"Projeto no workspace correspondente a {api.name}:",
+                names,
+                flag="--studio-api",
+                given=studio_api_name,
+            )
+        ]
 
         studio_raml = None
         if raml_local is not None:
             labels = [*names, "nenhuma — o RAML só existe na pasta de trabalho"]
-            idx = _choose(f"Pasta no workspace correspondente a {raml_local.name}:", labels)
+            idx = _pick(
+                f"Pasta no workspace correspondente a {raml_local.name}:",
+                labels,
+                flag="--studio-raml",
+                given=studio_raml_name,
+            )
             studio_raml = remote[idx] if idx < len(remote) else None
 
         cfg = BridgeConfig(

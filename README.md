@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-13%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -106,8 +106,9 @@ cd /caminho/do/seu/repo    # a raiz, onde ficam a pasta da API e a do RAML
 mule-bridge init           # pareia este repositório com um projeto do Studio
 ```
 
-O `init` mostra o que encontrou dos dois lados e pede sua escolha em cada passo — **nunca
-adivinha** qual pasta corresponde a qual:
+O `init` é **interativo**: ele varre os dois lados, lista o que encontrou e pede que você
+escolha pelo número. Nada é adivinhado — nem qual pasta da API, nem qual projeto do Studio
+corresponde a ela:
 
 ```console
 $ mule-bridge init
@@ -131,12 +132,69 @@ Config gravada em c:\projetos\minha-api\.mule-bridge.toml
 
 O pareamento fica em `.mule-bridge.toml`, na raiz do repositório — o `init` roda uma vez só.
 
+<details>
+<summary>Sem terminal interativo (extensão de IDE, agente de IA, CI)</summary>
+
+O `init` pergunta pelo terminal, mas nem sempre há um. Nesses casos ele lista o que
+encontrou e ensina a flag que dispensa o prompt:
+
+```console
+$ mule-bridge init
+
+Projeto de API nesta pasta de trabalho:
+  1. pedidos-api
+erro: Projeto de API nesta pasta de trabalho — não há terminal interativo para perguntar.
+Repita o comando escolhendo pela flag, ex: --api pedidos-api
+```
+
+Passando as escolhas, roda sem prompt nenhum:
+
+```bash
+mule-bridge init --api pedidos-api --raml pedidos-raml \
+  --studio-api minha-api --studio-raml minha-api-raml
+```
+
+Use `--raml nenhuma` para não sincronizar RAML, e `--studio-root` quando o workspace não
+estiver num caminho padrão.
+
+</details>
+
 Daí em diante:
 
 ```bash
 mule-bridge push           # suas edições  ->  Studio
 mule-bridge pull           # Studio        ->  seu repositório
 ```
+
+## Uso com agentes de IA
+
+A CLI é a única camada com lógica — as outras são atalhos para acioná-la.
+
+**Pedindo em português.** Como o `mule-bridge` é um comando de terminal, qualquer agente que
+execute comandos (Claude Code, Codex CLI) consegue usá-lo. Basta pedir *"sincroniza pro
+Studio"*. Para que o agente saiba que a ferramenta existe num projeto, documente-a no
+`AGENTS.md`/`CLAUDE.md` daquele projeto.
+
+**Com barra, no Claude Code.** Instale a skill uma vez e o comando fica disponível em todos
+os seus projetos:
+
+```bash
+mkdir -p ~/.claude/skills/mule-bridge
+curl -o ~/.claude/skills/mule-bridge/SKILL.md   https://raw.githubusercontent.com/igordiascardoso/mule-bridge/main/.claude/skills/mule-bridge/SKILL.md
+```
+
+Depois, dentro de uma sessão do Claude Code:
+
+```
+/mule-bridge push      # suas edições  ->  Studio
+/mule-bridge pull      # Studio        ->  seu repositório
+/mule-bridge status    # não altera nada
+```
+
+A skill não reimplementa nada: ela escolhe o comando certo, roda `--dry-run` antes de
+operações de risco e nunca passa `--delete` sem você pedir. Para o `init`, ela lista os
+projetos encontrados, pergunta qual é o correto e roda o comando com as flags da sua
+escolha — funciona igual na extensão do VS Code, onde não há terminal para prompts.
 
 ## Comandos
 
@@ -198,7 +256,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 13 testes
+pytest          # 18 testes
 ruff check .    # lint
 ```
 
@@ -214,8 +272,11 @@ do `pom.xml`, `config` lembra o pareamento.
 - [ ] **Reconciliação tipo `git rebase`** — hoje o sync é cópia direta: se os dois lados
       alterarem o mesmo arquivo, o último a sincronizar vence. O alvo é tratar a versão do
       Exchange como base limpa e reaplicar as edições locais por cima.
-- [ ] **Skill do Claude Code e MCP server** — camadas finas que acionam os mesmos comandos
-      a partir de um agente de IA, sem reimplementar lógica.
+- [x] **Skill do Claude Code** — `/mule-bridge push` dentro de uma sessão
+- [ ] **MCP server** — os mesmos comandos como ferramentas MCP, para clients que não sejam
+      o Claude Code
+- [ ] **`AGENTS.md` de exemplo** — trecho pronto para colar num projeto Mule, para o agente
+      saber sozinho quando acionar a ferramenta
 
 ## Contribuindo
 

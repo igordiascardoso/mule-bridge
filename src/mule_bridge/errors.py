@@ -15,3 +15,7 @@ class DiscoveryError(BridgeError):
 
 class SyncError(BridgeError):
     """Falha durante a cópia/reconciliação de arquivos."""
+
+
+class NonInteractiveError(BridgeError):
+    """Precisava perguntar algo, mas não há terminal interativo (IDE, agente de IA, CI)."""
