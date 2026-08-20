@@ -33,11 +33,38 @@ Funciona em qualquer projeto Mule. O caso previsto é o de uma pasta de API com 
 como irmã na raiz do repositório — quando os nomes seguem o padrão `*-api/` e `*-raml/`, o
 pareamento é sugerido automaticamente, mas qualquer par de pastas pode ser escolhido.
 
+## Pré-requisitos
+
+- **Python 3.10 ou superior** — `python --version` para conferir.
+- **git** — necessário apenas para instalar direto do repositório (o comando abaixo clona
+  o projeto). A ferramenta em si não usa git em tempo de execução.
+- **Anypoint Studio** já instalado, com o workspace onde os projetos são importados.
+
+O `mule-bridge` não precisa de Java nem do Maven: ele copia e reescreve arquivos, quem
+compila e roda o projeto continua sendo o Studio.
+
 ## Instalação
+
+Com [pipx](https://pipx.pypa.io) (recomendado — isola a ferramenta do resto do sistema):
 
 ```bash
 pipx install git+https://github.com/igordiascardoso/mule-bridge
 ```
+
+Se não tiver pipx, dá para usar o pip normalmente:
+
+```bash
+pip install git+https://github.com/igordiascardoso/mule-bridge
+```
+
+Para confirmar que ficou disponível no terminal:
+
+```bash
+mule-bridge --version
+```
+
+Se o comando não for encontrado, o diretório de scripts do Python não está no `PATH` —
+`pipx ensurepath` resolve, e depois é preciso abrir um terminal novo.
 
 ## Uso
 
