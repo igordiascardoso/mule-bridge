@@ -1,6 +1,6 @@
 ---
 name: mule-bridge
-description: Sincroniza um projeto Mule entre a pasta de trabalho (repositorio git) e o workspace do Anypoint Studio. Use quando o usuario pedir para sincronizar, mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mule-bridge com push, pull, status ou init.
+description: "init | push | pull | status — sincroniza um projeto Mule entre a pasta de trabalho (repositorio git) e o workspace do Anypoint Studio. Use quando o usuario pedir para sincronizar, mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mule-bridge com ou sem argumento."
 ---
 
 # mule-bridge
@@ -15,13 +15,22 @@ O usuario escreve `/mule-bridge <acao>`. Mapeie assim:
 
 | Argumento | Comando |
 |---|---|
-| `push`, ou nada dito sobre direcao mas o contexto e "mandar pro Studio" | `mule-bridge push` |
+| `push`, ou o contexto e "mandar pro Studio" | `mule-bridge push` |
 | `pull` | `mule-bridge pull` |
-| `status`, `o que mudou`, vazio | `mule-bridge status` |
+| `status`, `o que mudou` | `mule-bridge status` |
 | `init`, `parear`, `configurar` | ver **init** abaixo |
 
-Sem argumento nenhum, rode `mule-bridge status` — e nao um sync. Status nao altera nada,
-entao e o default seguro.
+### Sem argumento nenhum
+
+`/mule-bridge` sozinho e o caso mais comum — o usuario pode nem saber quais argumentos
+existem. **Nunca sincronize por conta propria aqui.** Rode `mule-bridge status` e decida
+pelo resultado:
+
+- **Deu erro de config ausente** — o projeto ainda nao foi pareado. Nao peca para o usuario
+  digitar outro comando: conduza o **init** (abaixo) na hora, ja mostrando as opcoes.
+- **Mostrou o pareamento** — apresente a tabela e diga, em uma linha, o que ele pode fazer
+  em seguida: `/mule-bridge push` para mandar pro Studio, `/mule-bridge pull` para trazer
+  de volta.
 
 ## Antes de sincronizar
 
