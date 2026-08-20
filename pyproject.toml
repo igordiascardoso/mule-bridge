@@ -9,7 +9,7 @@ description = "Sync automático de projetos Mule/Anypoint entre a pasta de traba
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Igor Cardoso", email = "igordiascardoso@gmail.com" }]
+authors = [{ name = "Igor Dias Cardoso", email = "igordiascardoso@gmail.com" }]
 keywords = ["mule", "anypoint", "raml", "sync", "studio"]
 classifiers = [
     "Programming Language :: Python :: 3",
