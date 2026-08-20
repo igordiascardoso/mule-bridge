@@ -177,7 +177,9 @@ def _run(direction: Direction, work_root: Path | None, delete: bool, dry_run: bo
 @app.command()
 def push(
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    delete: bool = typer.Option(False, "--delete", help="Remove no destino o que sumiu na origem."),
+    delete: bool = typer.Option(
+        False, "--delete", help="Remove no workspace o que ja nao existe na pasta de trabalho."
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
 ) -> None:
     """Pasta de trabalho -> workspace do Studio (reescreve o pom.xml só no destino)."""
@@ -187,7 +189,9 @@ def push(
 @app.command()
 def pull(
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    delete: bool = typer.Option(False, "--delete", help="Remove na origem o que sumiu no destino."),
+    delete: bool = typer.Option(
+        False, "--delete", help="Remove na pasta de trabalho o que ja nao existe no workspace."
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
 ) -> None:
     """Workspace do Studio -> pasta de trabalho (ignora o pom.xml apontado ao RAML local)."""

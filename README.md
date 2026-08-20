@@ -1,47 +1,74 @@
+<div align="center">
+
 # mule-bridge
 
-Mantém sincronizados os dois lugares onde um projeto Mule vive: a **pasta de trabalho**, onde
-o código é editado e versionado no git, e o **workspace do Anypoint Studio**, de onde o Studio
-roda a aplicação.
+**Edite seu projeto Mule onde você quiser. O Anypoint Studio acompanha.**
+
+Sincroniza o repositório onde você desenvolve com o workspace do Anypoint Studio —
+sem excluir e reimportar o projeto a cada mudança.
+
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-13%20passing-brightgreen)](tests/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
+
+</div>
+
+---
 
 ## O problema
 
-Em muitos setups essas duas pastas são fisicamente separadas — o código fica num repositório
-(`c:\projetos\minha-api`) e o Studio roda a partir do seu próprio workspace
-(`~\AnypointStudio\studio-workspace\minha-api`). As duas não se falam: uma alteração feita
-no repositório simplesmente não aparece no Studio, e a única forma de fazê-la aparecer é
-excluir o projeto no Studio e reimportar do zero.
+Em muitos setups Mule, o código vive em dois lugares que não se falam:
 
-O tráfego também é de mão dupla. O Studio altera arquivos por conta própria: quando o contrato
-RAML muda de versão, o scaffold regenera o `application.xml` e pode criar flows novos. Essas
-mudanças precisam voltar para o repositório sem atropelar o que você editou lá.
+```
+c:\projetos\minha-api                              ~\AnypointStudio\studio-workspace\minha-api
+├── minha-api/          você edita aqui       ✗     ├── minha-api/        o Studio roda daqui
+└── minha-raml/         (git, IA, sua IDE)          └── ...
+```
 
-## O que o mule-bridge faz
+Uma alteração feita no repositório **simplesmente não aparece no Studio**. A saída de sempre
+é excluir o projeto no Studio e reimportar do zero — a cada mudança.
 
-Um comando para cada sentido, rodados sob demanda — não há watcher em segundo plano:
+E o tráfego é de mão dupla: quando o contrato RAML muda de versão, o scaffold do Studio
+regenera o `application.xml` e pode **criar flows novos**. Isso precisa voltar para o
+repositório sem atropelar o que você editou lá.
 
-- **`push`** leva o que você editou no repositório para o workspace do Studio. O Studio detecta
-  a mudança no disco e redeploya sozinho, sem reimportação e sem nenhum passo manual.
-- **`pull`** traz de volta o que o Studio alterou por conta própria.
-- **`init`** descobre os projetos dos dois lados, mostra o que encontrou e deixa você parear —
-  a ferramenta nunca adivinha qual pasta corresponde a qual.
+## A solução
 
-O `pom.xml` recebe tratamento especial, para que o RAML editado localmente possa ser testado
-no Studio sem que esse apontamento local jamais vaze para o commit (detalhes abaixo).
+```console
+$ mule-bridge push
 
-Funciona em qualquer projeto Mule. O caso previsto é o de uma pasta de API com a pasta do RAML
-como irmã na raiz do repositório — quando os nomes seguem o padrão `*-api/` e `*-raml/`, o
-pareamento é sugerido automaticamente, mas qualquer par de pastas pode ser escolhido.
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ projeto      ┃ copiados ┃ pom reescrito ┃ removidos ┃ ignorados ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ pedidos-api  │        3 │             1 │         0 │         0 │
+│ pedidos-raml │        1 │             0 │         0 │         0 │
+└──────────────┴──────────┴───────────────┴───────────┴───────────┘
+```
+
+O Studio detecta a mudança no disco e **redeploya sozinho**. Sem reimportar, sem refresh,
+sem passo manual.
+
+### Por que não um `cp -r`?
+
+| | `cp` / `robocopy` | `mule-bridge` |
+|---|---|---|
+| Copia os arquivos do projeto | ✅ | ✅ |
+| Ignora `target/`, `.mule`, `.settings` | manual | ✅ automático |
+| Aponta o `pom.xml` para o RAML local **só no Studio** | ❌ | ✅ |
+| Impede que esse apontamento vaze para o commit | ❌ | ✅ |
+| Traz de volta os flows que o scaffold gerou | ❌ | ✅ `pull` |
+| Mostra o que vai mudar antes de mudar | ❌ | ✅ `--dry-run` |
 
 ## Pré-requisitos
 
-- **Python 3.10 ou superior** — `python --version` para conferir.
-- **git** — necessário apenas para instalar direto do repositório (o comando abaixo clona
-  o projeto). A ferramenta em si não usa git em tempo de execução.
-- **Anypoint Studio** já instalado, com o workspace onde os projetos são importados.
+- **Python 3.10 ou superior** — confira com `python --version`.
+- **git** — só para instalar direto do repositório; a ferramenta não usa git em execução.
+- **Anypoint Studio**, com o workspace onde os projetos são importados.
 
-O `mule-bridge` não precisa de Java nem do Maven: ele copia e reescreve arquivos, quem
-compila e roda o projeto continua sendo o Studio.
+Não precisa de Java nem Maven: o `mule-bridge` copia e reescreve arquivos — quem compila e
+roda continua sendo o Studio.
 
 ## Instalação
 
@@ -51,61 +78,118 @@ Com [pipx](https://pipx.pypa.io) (recomendado — isola a ferramenta do resto do
 pipx install git+https://github.com/igordiascardoso/mule-bridge
 ```
 
-Se não tiver pipx, dá para usar o pip normalmente:
+<details>
+<summary>Alternativas e solução de problemas</summary>
+
+Sem pipx, o pip funciona igual:
 
 ```bash
 pip install git+https://github.com/igordiascardoso/mule-bridge
 ```
 
-Para confirmar que ficou disponível no terminal:
+Confirme que ficou disponível no terminal:
 
 ```bash
 mule-bridge --version
 ```
 
-Se o comando não for encontrado, o diretório de scripts do Python não está no `PATH` —
-`pipx ensurepath` resolve, e depois é preciso abrir um terminal novo.
+Se o comando não for encontrado, o diretório de scripts do Python não está no `PATH`.
+`pipx ensurepath` resolve — depois abra um terminal novo.
 
-## Uso
+</details>
+
+## Começando
 
 ```bash
-cd /caminho/do/seu/repo     # raiz da pasta de trabalho
+cd /caminho/do/seu/repo    # a raiz, onde ficam a pasta da API e a do RAML
 
-mule-bridge init            # pareia com um projeto do workspace do Studio
-mule-bridge status          # mostra o pareamento e o que um push faria agora
-mule-bridge push            # pasta de trabalho -> workspace do Studio
-mule-bridge pull            # workspace do Studio -> pasta de trabalho
+mule-bridge init           # pareia este repositório com um projeto do Studio
 ```
 
-Os dois comandos aceitam `--dry-run`, que mostra o que seria feito sem alterar nada, e
-`--delete`, que remove no lado de destino os arquivos que já não existem no lado de origem
-(no `push` o destino é o workspace; no `pull`, a pasta de trabalho). Sem `--delete`, o sync
-só copia — nada é apagado.
+O `init` mostra o que encontrou dos dois lados e pede sua escolha em cada passo — **nunca
+adivinha** qual pasta corresponde a qual:
 
-### `init`
+```console
+$ mule-bridge init
 
-Lista os projetos de API encontrados na raiz da pasta de trabalho, os workspaces do Studio
-da máquina e os projetos dentro do workspace escolhido — e pede a escolha em cada passo. A
-pasta de RAML irmã é sugerida pelo prefixo do nome, mas a decisão continua sendo sua. O
-pareamento é gravado em `.mule-bridge.toml` na raiz da pasta de trabalho.
+Projeto de API nesta pasta de trabalho:
+  1. pedidos-api
 
-### `push` e o `pom.xml`
+Pasta do RAML correspondente:
+  1. pedidos-raml  (sugerido)
+  2. nenhuma — não sincronizar RAML
+Escolha [1]:
 
-O `pom.xml` é o único caso especial. Na pasta de trabalho ele continua sempre apontando para
-a dependência do RAML no Exchange, com a versão travada — é essa versão que vai para o git.
-Só **no destino** (workspace do Studio) o `push` reescreve a dependência para apontar ao RAML
-local, para que as edições locais do RAML possam ser testadas no Studio. A dependência
-original fica preservada como comentário logo acima, e o `pull` ignora esse arquivo para que
-o apontamento local nunca volte para a pasta de trabalho.
+Workspace do Anypoint Studio:
+  1. C:\Users\voce\AnypointStudio\studio-workspace
 
-Depois do `push` não é preciso nenhum passo extra no Studio: ele detecta a mudança no disco
-e redeploya sozinho.
+Projeto no workspace correspondente a pedidos-api:
+  1. minha-api  [api]
 
-### `pull`
+Config gravada em c:\projetos\minha-api\.mule-bridge.toml
+```
 
-Captura o que mudou do lado do Studio: o `application.xml` regenerado pelo scaffold, ou
-arquivos que o próprio Studio ajustou ao resolver dependências. O `pom.xml` reescrito pelo
-`push` é ignorado, para que o apontamento local nunca volte para o repositório.
+O pareamento fica em `.mule-bridge.toml`, na raiz do repositório — o `init` roda uma vez só.
+
+Daí em diante:
+
+```bash
+mule-bridge push           # suas edições  ->  Studio
+mule-bridge pull           # Studio        ->  seu repositório
+```
+
+## Comandos
+
+| Comando | O que faz |
+|---|---|
+| `init` | Descobre os projetos dos dois lados e grava o pareamento. |
+| `status` | Mostra o pareamento atual e o que um `push` faria agora. |
+| `push` | Leva o que você editou para o workspace do Studio. |
+| `pull` | Traz de volta o que o Studio alterou por conta própria. |
+
+**Flags** de `push` e `pull`:
+
+| Flag | Efeito |
+|---|---|
+| `--dry-run`, `-n` | Mostra o que seria feito, sem alterar nada. |
+| `--delete` | Remove no destino os arquivos que já não existem na origem. |
+| `--work-root`, `-w` | Roda a partir de outro diretório, em vez do atual. |
+
+> **Nota:** sem `--delete`, o sync só copia — nada é apagado em nenhum dos lados.
+> No `push` o destino é o workspace; no `pull`, o seu repositório.
+
+## Como funciona
+
+### O `pom.xml` é o único caso especial
+
+O projeto referencia o RAML como dependência do Exchange, com a versão travada. Para testar
+suas edições locais do RAML no Studio, essa referência precisa apontar para o arquivo local
+— mas essa alteração **não pode ir para o commit**.
+
+O `push` resolve isso reescrevendo o arquivo apenas do lado do Studio:
+
+```
+seu repositório  ──►  workspace do Studio
+pom.xml                pom.xml
+  Exchange, 1.1.54       RAML local (systemPath)
+  ↑ intacto, é o          ↑ reescrito no destino, com a
+    que vai pro git         dependência original preservada
+                            como comentário
+```
+
+O `pull` reconhece o arquivo reescrito e o ignora, para que o apontamento local nunca volte
+para o repositório.
+
+### O que nunca é sincronizado
+
+`.git`, `.svn`, `target`, `.mule`, `.settings`, `__pycache__` e `.DS_Store` — artefatos de
+build e metadados. A lista é configurável em `.mule-bridge.toml`.
+
+### Por que não há watcher automático
+
+O sync roda sob demanda. Um processo em segundo plano copiando arquivos enquanto o scaffold
+do Studio reescreve os mesmos arquivos é receita para perder trabalho — você decide quando
+sincronizar, e o `--dry-run` deixa conferir antes.
 
 ## Desenvolvimento
 
@@ -114,19 +198,30 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # testes
+pytest          # 13 testes
 ruff check .    # lint
 ```
 
-## Estado
+A lógica de negócio vive inteira na CLI ([`src/mule_bridge/`](src/mule_bridge/)):
+`discovery` acha os projetos, `sync` move os arquivos, `pomrewrite` cuida do caso especial
+do `pom.xml`, `config` lembra o pareamento.
 
-Estrutura base e sync bidirecional funcionando.
+## Roadmap
 
-Ainda por implementar:
+- [x] Descoberta interativa de projetos nos dois lados
+- [x] Sync bidirecional (`push` / `pull`) com `--dry-run`
+- [x] Reescrita do `pom.xml` isolada no workspace do Studio
+- [ ] **Reconciliação tipo `git rebase`** — hoje o sync é cópia direta: se os dois lados
+      alterarem o mesmo arquivo, o último a sincronizar vence. O alvo é tratar a versão do
+      Exchange como base limpa e reaplicar as edições locais por cima.
+- [ ] **Skill do Claude Code e MCP server** — camadas finas que acionam os mesmos comandos
+      a partir de um agente de IA, sem reimplementar lógica.
 
-- **Reconciliação tipo `git rebase`** — hoje o sync é cópia direta: se os dois lados
-  alterarem o mesmo arquivo, o último a sincronizar vence. O alvo é tratar a versão do
-  Exchange como base limpa e reaplicar as edições locais por cima, para que nenhum dos
-  lados se perca quando o scaffold do Studio e uma edição local acontecem em paralelo.
-- **Skill do Claude Code e MCP server** — camadas finas que acionam os mesmos comandos
-  desta CLI a partir de um agente, sem reimplementar lógica.
+## Contribuindo
+
+Issues e PRs são bem-vindos. Para mudanças de comportamento, um teste junto ajuda bastante —
+a suíte roda em menos de um segundo.
+
+## Licença
+
+[MIT](LICENSE) © Igor Dias Cardoso
