@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mule-bridge"
+version = "0.1.0"
+description = "Sync automático de projetos Mule/Anypoint entre a pasta de trabalho e o workspace do Anypoint Studio"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Igor Cardoso", email = "igordiascardoso@gmail.com" }]
+keywords = ["mule", "anypoint", "raml", "sync", "studio"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+]
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "tomlkit>=0.13",
+    "lxml>=5.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
+mcp = ["mcp>=1.2"]
+
+[project.scripts]
+mule-bridge = "mule_bridge.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/igordiascardoso/mule-bridge"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mule_bridge"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# typer.Option() em argumento default e o idioma da propria biblioteca.
+"src/mule_bridge/cli.py" = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
