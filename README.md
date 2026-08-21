@@ -85,15 +85,22 @@ Você editou o RAML e sai uma versão nova no Exchange. Ou você mexeu num flow 
 gerou outros. Copiar por cima apagaria o seu trabalho — então `pararepo raml` e
 `pararepo api` não copiam: eles fazem **merge** das duas versões.
 
-Arquivo por arquivo:
+O merge escreve **no seu repositório**, e só nele. O workspace do Studio não é tocado:
+
+| Comando | De onde vem o novo | Onde ele escreve |
+|---|---|---|
+| `pararepo raml` | a versão nova do RAML, do Exchange | a sua pasta do RAML (`pedidos-raml/`) |
+| `pararepo api` | o que está no workspace do Studio | a sua pasta da API (`pedidos-api/`) |
+
+Arquivo por arquivo, dentro dessa pasta:
 
 | A situação | O que ele faz |
 |---|---|
-| Você mexeu, o Exchange não | deixa o seu, sem tocar |
-| O Exchange mexeu, você não | traz o novo |
-| Os dois mexeram, **em lugares diferentes** do arquivo | fica com as duas mudanças |
-| Os dois mexeram **na mesma linha** | **pergunta a você** qual fica |
-| Arquivo novo, de qualquer um dos lados | entra |
+| Você mexeu no arquivo, o outro lado não | mantém o seu, sem abrir |
+| O outro lado mexeu, você não | escreve a versão dele por cima da sua |
+| Os dois mexeram, **em lugares diferentes** do arquivo | escreve um arquivo com as duas mudanças |
+| Os dois mexeram **na mesma linha** | **pergunta a você** qual das duas fica |
+| O arquivo existe só de um lado | se é seu, fica; se é dele, é criado na sua pasta |
 
 **Só a mesma linha precisa de você.** Aí ele mostra os dois lados e espera:
 
@@ -109,16 +116,18 @@ api.raml — as duas versoes mexeram nas mesmas linhas
 Fica qual? 1 = a sua, 2 = a que veio, 3 = eu escrevo [1]:
 ```
 
-Você responde, ele grava, acabou. Não sobra marcador `<<<<<<<` no arquivo e não há segundo
-comando para rodar.
+Você responde, ele grava o arquivo na sua pasta com a versão escolhida, e acabou. Não sobra
+marcador `<<<<<<<` dentro dele, e não há segundo comando para rodar.
 
 Num agente de IA não existe onde digitar a resposta — então ele mostra as duas versões e
-**não grava nada**. O agente faz o merge e roda de novo.
+**não grava nada, em nenhum arquivo**. O agente escreve a versão combinada na sua pasta e
+roda o comando de novo.
 
 ### Dois detalhes do `pararepo raml`
 
-**A pasta não existe?** Ele cria: extrai a versão que o Studio usa para uma pasta nova na
-raiz do repositório. É o caso de um projeto recém-clonado.
+**A pasta do RAML não existe?** Não há merge a fazer, então ele extrai o zip da versão que o
+Studio usa para uma pasta nova na raiz do repositório (`pedidos-raml/`, do nome do artefato) e
+para. É o caso de um projeto recém-clonado.
 
 **Ele commita parte sozinho.** Os arquivos que vieram do Exchange e você não tinha tocado vão
 para um commit à parte (`chore(raml): especificacao pedidos 1.1.55`). Sem isso, o seu
