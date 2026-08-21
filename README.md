@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-41%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-44%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -108,9 +108,9 @@ cd /caminho/do/seu/repo    # a raiz, onde ficam a pasta da API e a do RAML
 ponte init           # pareia este repositório com um projeto do Studio
 ```
 
-O `init` é **interativo**: ele varre os dois lados, lista o que encontrou e pede que você
-escolha pelo número. Nada é adivinhado — nem qual pasta da API, nem qual projeto do Studio
-corresponde a ela:
+O `init` varre os dois lados e lista o que encontrou. Onde há mais de um candidato, ele
+pede que você escolha pelo número; onde há um só, resolve e segue — perguntar o que não
+tem alternativa só faria você digitar de novo:
 
 ```console
 $ ponte init
@@ -355,7 +355,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 41 testes
+pytest          # 44 testes
 ruff check .    # lint
 ```
 

@@ -33,6 +33,13 @@ def _choose(title: str, options: list[str], *, flag: str, default: int = 1) -> i
     Sem terminal interativo (extensão de IDE, agente de IA, CI) não há como perguntar: o
     erro lista as opções encontradas e ensina a flag que dispensa o prompt.
     """
+    if len(options) == 1:
+        # Uma opcao so nao e escolha: perguntar aqui e ritual vazio, e obriga um agente
+        # de IA a uma ida e volta inutil com o usuario.
+        console.print(f"\n[bold]{title}[/]")
+        console.print(f"  [green]{options[0]}[/]  [dim](unica opcao)[/]")
+        return 0
+
     console.print(f"\n[bold]{title}[/]")
     for i, opt in enumerate(options, 1):
         console.print(f"  [cyan]{i}[/]. {opt}")
@@ -222,6 +229,13 @@ def init(
         raise _fail(exc) from exc
 
     console.print(f"\n[green]Config gravada em[/] {written}")
+
+    if cfg.raml is None:
+        console.print(
+            "\n[yellow]Sem pasta de RAML neste repositorio.[/]\n"
+            "Rode [bold]ponte pararepo raml --aplicar[/] para cria-la com a "
+            "especificacao que o Studio usa."
+        )
 
 
 def _report(plans: dict[str, SyncPlan], dry_run: bool) -> None:

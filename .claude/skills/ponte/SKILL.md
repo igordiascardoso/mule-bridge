@@ -133,8 +133,9 @@ quando ha terminal, mas **dentro de uma sessao de agente nao ha** — entao cond
    ponte init
    ```
 
-2. **Mostre as opcoes ao usuario e pergunte qual e a correta.** A escolha do par de pastas
-   e dele por design — a ferramenta nunca adivinha, e voce tambem nao deve.
+2. **Onde houver mais de uma opcao, mostre e pergunte ao usuario.** Onde houver uma so, o
+   proprio comando resolve e segue — nao pergunte o que nao tem alternativa. Se o `init`
+   rodou inteiro e gravou a config, nao havia nada a decidir: siga em frente.
 
 3. Rode de novo com a escolha dele:
 
@@ -148,6 +149,10 @@ Flags: `--api` e `--studio-api` (obrigatorias no modo sem prompt), `--raml` e
 workspace nao esta num caminho padrao, e `--force` para refazer uma config existente.
 
 Rode `init` uma vez por repositorio: o resultado fica no `.mule-bridge.toml`.
+
+**Se ele avisar que nao ha pasta de RAML**, repasse a instrucao que ele mesmo deu:
+`ponte pararepo raml --aplicar` cria a pasta com a especificacao que o Studio usa. Nao
+diga ao usuario que o comando vai falhar — ele cria a pasta.
 
 ## Erros comuns
 
