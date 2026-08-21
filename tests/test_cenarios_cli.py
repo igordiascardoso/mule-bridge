@@ -3,7 +3,7 @@
 O resto da suite testa as funcoes. Aqui testamos o caminho inteiro: `ponte pararepo raml`,
 com git, cache do Maven simulado, pom.xml dos dois lados e a saida que o usuario le. E onde
 aparecem os erros de integracao — flag que nao chega na funcao, mensagem que engana,
-comando que grava sem `--aplicar`.
+comando que grava o que nao devia.
 """
 
 from __future__ import annotations
@@ -107,27 +107,33 @@ def projeto(tmp_path, monkeypatch):
     return {"work": work, "studio": studio, "raml": raml}
 
 
-def _rodar(projeto, *args):
-    return runner.invoke(app, [*args, "-w", str(projeto["work"])])
+def _rodar(projeto, *args, entrada: str | None = None):
+    """Roda o comando como o usuario o digita.
+
+    `entrada` simula o que ele responde nos prompts; uma string vazia representa a
+    ausencia de terminal — o caso do agente de IA no chat, que nao tem onde digitar.
+    """
+    return runner.invoke(app, [*args, "-w", str(projeto["work"])], input=entrada)
 
 
-# --- pararepo raml: previa e aplicacao -------------------------------------------
+# --- pararepo raml -------------------------------------------
 
 
-def test_pararepo_raml_sem_aplicar_nao_escreve(projeto):
+def test_pararepo_raml_dry_run_nao_escreve(projeto):
     """A previa e previa: nenhum byte muda no disco."""
     antes = (projeto["raml"] / "api.raml").read_text(encoding="utf-8")
 
-    r = _rodar(projeto, "pararepo", "raml")
+    r = _rodar(projeto, "pararepo", "raml", "--dry-run")
 
     assert r.exit_code == 0, r.output
     assert (projeto["raml"] / "api.raml").read_text(encoding="utf-8") == antes
     assert not (projeto["raml"] / "domain" / "captcha.raml").exists()
 
 
-def test_pararepo_raml_com_aplicar_escreve_e_commita(projeto):
-    """Com a flag, aplica: arquivo novo entra e o que veio de fora vai para um commit."""
-    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
+def test_pararepo_raml_escreve_e_commita(projeto):
+    """A palavra `raml` ja e a autorizacao: arquivo novo entra e o que veio de fora
+    vira um commit a parte."""
+    r = _rodar(projeto, "pararepo", "raml")
 
     assert r.exit_code == 0, r.output
     assert (projeto["raml"] / "domain" / "captcha.raml").is_file()
@@ -142,7 +148,7 @@ def test_pararepo_raml_preserva_edicao_local(projeto):
         BASE_RAML.replace("version: v1", "version: v1\n# MINHA-NOTA"), encoding="utf-8"
     )
 
-    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
+    r = _rodar(projeto, "pararepo", "raml")
 
     assert r.exit_code == 0, r.output
     final = caminho.read_text(encoding="utf-8")
@@ -158,7 +164,7 @@ def test_pararepo_raml_com_conflito_nao_escreve_e_explica(projeto):
     )
     antes = caminho.read_text(encoding="utf-8")
 
-    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
+    r = _rodar(projeto, "pararepo", "raml")
 
     assert caminho.read_text(encoding="utf-8") == antes, "nada podia ser escrito"
     assert "<<<<<<<" not in caminho.read_text(encoding="utf-8")
@@ -167,10 +173,10 @@ def test_pararepo_raml_com_conflito_nao_escreve_e_explica(projeto):
 
 def test_pararepo_raml_duas_vezes_e_estavel(projeto):
     """Rodar de novo sem nada novo nao reescreve nem cria commit vazio."""
-    _rodar(projeto, "pararepo", "raml", "--aplicar")
+    _rodar(projeto, "pararepo", "raml")
     commits_antes = _git(projeto["work"], "log", "--oneline").stdout.count("\n")
 
-    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
+    r = _rodar(projeto, "pararepo", "raml")
 
     assert r.exit_code == 0, r.output
     assert _git(projeto["work"], "log", "--oneline").stdout.count("\n") == commits_antes
@@ -182,7 +188,7 @@ def test_git_status_mostra_so_a_minha_edicao(projeto):
         BASE_RAML.replace("version: v1", "version: v1\n# MINHA-NOTA"), encoding="utf-8"
     )
 
-    _rodar(projeto, "pararepo", "raml", "--aplicar")
+    _rodar(projeto, "pararepo", "raml")
 
     sujo = _git(projeto["work"], "status", "--porcelain").stdout
     assert "api.raml" in sujo, "a minha edicao tem de aparecer como mudanca minha"
@@ -241,26 +247,25 @@ def test_pararepo_api_traz_o_scaffold(projeto):
         projeto["studio"] / "studio-pedidos" / "src" / "main" / "mule" / "application.xml"
     ).write_text('<mule><flow name="scaffold"/></mule>\n', encoding="utf-8")
 
-    r = _rodar(projeto, "pararepo", "api", "--aplicar")
+    r = _rodar(projeto, "pararepo", "api")
 
     assert r.exit_code == 0, r.output
     local = projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml"
     assert "scaffold" in local.read_text(encoding="utf-8")
 
 
-def test_pararepo_api_sem_aplicar_e_so_previa(projeto):
-    """Como no raml, a API tambem exige --aplicar para gravar."""
+def test_pararepo_api_dry_run_e_so_previa(projeto):
+    """Como no raml, `--dry-run` mostra sem gravar."""
     (
         projeto["studio"] / "studio-pedidos" / "src" / "main" / "mule" / "application.xml"
     ).write_text('<mule><flow name="scaffold"/></mule>\n', encoding="utf-8")
     local = projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml"
     antes = local.read_text(encoding="utf-8")
 
-    r = _rodar(projeto, "pararepo", "api")
+    r = _rodar(projeto, "pararepo", "api", "--dry-run")
 
     assert r.exit_code == 0, r.output
-    assert local.read_text(encoding="utf-8") == antes, "sem a flag nao pode escrever"
-    assert "previa" in r.output, "e tem de avisar que foi previa"
+    assert local.read_text(encoding="utf-8") == antes, "com --dry-run nao pode escrever"
 
 
 def test_pararepo_api_nao_altera_o_pom_do_repo(projeto):
@@ -268,7 +273,7 @@ def test_pararepo_api_nao_altera_o_pom_do_repo(projeto):
     _rodar(projeto, "parastudio", "raml")  # o pom do Studio fica apontando local
     antes = (projeto["work"] / "pedidos-api" / "pom.xml").read_text(encoding="utf-8")
 
-    _rodar(projeto, "pararepo", "api", "--aplicar")
+    _rodar(projeto, "pararepo", "api")
 
     depois = (projeto["work"] / "pedidos-api" / "pom.xml").read_text(encoding="utf-8")
     assert depois == antes
@@ -307,7 +312,7 @@ def test_status_mostra_o_pareamento(projeto):
 
 def test_ciclo_completo_pela_cli(projeto):
     """raml novo -> parastudio -> scaffold no Studio -> pararepo api, tudo pela CLI."""
-    _rodar(projeto, "pararepo", "raml", "--aplicar")
+    _rodar(projeto, "pararepo", "raml")
     assert (projeto["raml"] / "domain" / "captcha.raml").is_file()
 
     _rodar(projeto, "parastudio")
@@ -317,7 +322,7 @@ def test_ciclo_completo_pela_cli(projeto):
         projeto["studio"] / "studio-pedidos" / "src" / "main" / "mule" / "application.xml"
     ).write_text('<mule><flow name="captcha-gerado"/></mule>\n', encoding="utf-8")
 
-    r = _rodar(projeto, "pararepo", "api", "--aplicar")
+    r = _rodar(projeto, "pararepo", "api")
     assert r.exit_code == 0, r.output
 
     local = projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml"
@@ -328,64 +333,83 @@ def test_ciclo_completo_pela_cli(projeto):
     assert pomrewrite.has_local_pointer(projeto["studio"] / "studio-pedidos" / "pom.xml")
 
 
-# --- Saida do impasse: --resolvido ----------------------------------------------
+# --- Conflito: resolvido na hora, sem segundo comando ---------------------------
 
 
-def test_conflito_ensina_a_palavra_de_saida(projeto):
-    """A mensagem tem de dizer COMO sair, nao so que houve conflito.
+def test_conflito_pergunta_e_grava_a_escolha(projeto):
+    """As duas versoes mexeram na mesma linha: o comando pergunta e resolve ali.
 
-    Antes ela mandava "resolva e rode de novo" — mas rodar de novo repetia o mesmo
-    conflito, porque a base continua sendo a versao antiga e o texto combinado segue
-    divergindo dos dois lados. O usuario ficava sem saida.
+    Nao ha segundo comando nem marcador deixado no arquivo — sair do conflito e responder
+    a pergunta, e o comando termina com o arquivo inteiro e valido no disco.
     """
     caminho = projeto["raml"] / "api.raml"
     caminho.write_text(
         BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n"), encoding="utf-8"
     )
 
-    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
-
-    assert "resolvido" in r.output, "a saida tem de ensinar a palavra"
-
-
-def test_resolvido_aceita_o_que_esta_no_disco(projeto):
-    """Depois de combinar as duas versoes na mao, `--resolvido` destrava a aplicacao."""
-    caminho = projeto["raml"] / "api.raml"
-    combinado = BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n    novo: string\n")
-    caminho.write_text(combinado, encoding="utf-8")
-
-    r = _rodar(projeto, "pararepo", "raml", "force", "resolvido")
+    r = _rodar(projeto, "pararepo", "raml", entrada="1\n")
 
     assert r.exit_code == 0, r.output
     final = caminho.read_text(encoding="utf-8")
-    assert "meu: string" in final, "a minha intencao ficou"
-    assert "novo: string" in final, "a deles tambem"
-    assert "<<<<<<<" not in final
+    assert "meu: string" in final, "escolhi a minha versao"
+    assert "<<<<<<<" not in final, "marcador de merge nunca fica no arquivo"
 
 
-def test_resolvido_nao_e_preciso_quando_nao_ha_conflito(projeto):
-    """A flag e inerte no caminho limpo: nao muda o resultado de um merge sem conflito."""
-    r = _rodar(projeto, "pararepo", "raml", "force", "resolvido")
+def test_conflito_mostra_os_dois_lados_antes_de_perguntar(projeto):
+    """Nao da para escolher sem ver: a saida traz o meu texto e o que veio."""
+    caminho = projeto["raml"] / "api.raml"
+    caminho.write_text(
+        BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n"), encoding="utf-8"
+    )
+
+    r = _rodar(projeto, "pararepo", "raml", entrada="1\n")
+
+    assert "api.raml" in r.output
+    assert "a sua versao" in r.output and "a versao que veio" in r.output
+
+
+def test_conflito_aceita_a_versao_que_veio(projeto):
+    """Responder 2 descarta a minha edicao naquele arquivo — foi o que eu pedi."""
+    caminho = projeto["raml"] / "api.raml"
+    caminho.write_text(
+        BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n"), encoding="utf-8"
+    )
+
+    r = _rodar(projeto, "pararepo", "raml", entrada="2\n")
 
     assert r.exit_code == 0, r.output
-    assert (projeto["raml"] / "domain" / "captcha.raml").is_file()
+    assert "meu: string" not in caminho.read_text(encoding="utf-8")
 
 
-def test_sem_resolvido_o_conflito_nao_escreve(projeto):
-    """A palavra e a unica porta: sem ela, o comportamento antigo continua valendo."""
+def test_sem_terminal_o_conflito_nao_escreve(projeto):
+    """No chat de um agente de IA nao ha como perguntar: nada e gravado.
+
+    Escolher um lado calado e onde uma mudanca se perde sem ninguem ver. Em vez disso os
+    dois lados sao impressos, para o agente combinar as versoes e rodar de novo.
+    """
     caminho = projeto["raml"] / "api.raml"
     caminho.write_text(
         BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n"), encoding="utf-8"
     )
     antes = caminho.read_text(encoding="utf-8")
 
-    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
+    r = _rodar(projeto, "pararepo", "raml", entrada="")
 
-    assert r.exit_code == 1
-    assert caminho.read_text(encoding="utf-8") == antes
+    assert r.exit_code == 1, r.output
+    assert caminho.read_text(encoding="utf-8") == antes, "nada pode ser escrito"
+    assert "Combine as duas versoes" in r.output, "tem de dizer o que fazer"
 
 
-def test_resolvido_na_api_tambem(projeto):
+def test_sem_conflito_nada_e_perguntado(projeto):
+    """O caminho limpo nao para: merge sem colisao grava direto."""
+    r = _rodar(projeto, "pararepo", "raml", entrada="")
+
+    assert r.exit_code == 0, r.output
+    assert (projeto["raml"] / "domain" / "captcha.raml").is_file()
+    assert "Fica qual?" not in r.output
+
+
+def test_conflito_na_api_tambem_e_resolvido_na_hora(projeto):
     """O mesmo impasse existe do lado da API, com a base vindo do git."""
     rel = "src/main/mule/application.xml"
     (projeto["work"] / "pedidos-api" / rel).write_text(
@@ -395,15 +419,8 @@ def test_resolvido_na_api_tambem(projeto):
         "<mule>\n  <flow name='deles'/>\n</mule>\n", encoding="utf-8"
     )
 
-    sem_flag = _rodar(projeto, "pararepo", "api", "force")
-    assert sem_flag.exit_code == 1
-    assert "resolvido" in sem_flag.output
+    r = _rodar(projeto, "pararepo", "api", entrada="1\n")
 
-    combinado = "<mule>\n  <flow name='meu'/>\n  <flow name='deles'/>\n</mule>\n"
-    (projeto["work"] / "pedidos-api" / rel).write_text(combinado, encoding="utf-8")
-
-    com_flag = _rodar(projeto, "pararepo", "api", "force", "resolvido")
-
-    assert com_flag.exit_code == 0, com_flag.output
+    assert r.exit_code == 0, r.output
     final = (projeto["work"] / "pedidos-api" / rel).read_text(encoding="utf-8")
-    assert "meu" in final and "deles" in final
+    assert "meu" in final and "<<<<<<<" not in final

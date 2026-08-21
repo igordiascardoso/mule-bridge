@@ -1,11 +1,9 @@
-"""A palavra `force` do `pararepo`: gravar tem de ser deliberado.
+"""O vocabulário dos comandos: três palavras, uma delas obrigatória.
 
-O `pararepo` escreve no repositório do usuário, e o uso principal é digitado no chat de um
-agente de IA. Uma flag no fim da linha (`--aplicar`) passa batida ali; uma palavra a mais no
-comando, não. Daí `ponte pararepo force`.
-
-Estes testes cobrem o que a suíte de cenários não pegava, porque ela chama a função com
-`--aplicar` em vez de passar os argumentos como o usuário os digita.
+`raml` e `api` juntam o que os dois lados mudaram. `force` sobrescreve o destino sem juntar
+— é a única palavra que pode fazer trabalho ser perdido, e por isso não se combina com as
+outras. Sem palavra nenhuma o comando recusa: adivinhar é onde uma gravação sai errada,
+sobretudo quando é um agente de IA digitando no chat.
 """
 
 from __future__ import annotations
@@ -15,10 +13,11 @@ import zipfile
 from pathlib import Path
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from mule_bridge import config
-from mule_bridge.cli import _parse_palavras, app
+from mule_bridge.cli import PALAVRAS, _parse_palavras, app
 from mule_bridge.config import BridgeConfig, ProjectPair
 
 runner = CliRunner()
@@ -44,94 +43,96 @@ BASE_RAML = "#%RAML 1.0\ntitle: Pedidos\nversion: v1\ntypes:\n  Pedido:\n  Item:
 # --- O parser, isolado ----------------------------------------------------------
 
 
-def test_sem_palavras_e_previa_de_tudo():
+def test_sem_palavra_o_comando_recusa():
+    """`ponte pararepo` sozinho nao existe: a palavra e o que diz o que fazer."""
     for entrada in (None, []):
-        p = _parse_palavras(entrada)
-        assert p.parte is None
-        assert not p.force and not p.resolvido
+        with pytest.raises(typer.BadParameter, match="Falta a palavra"):
+            _parse_palavras(entrada, comando="pararepo")
+
+
+def test_o_erro_de_falta_ensina_as_tres_formas():
+    """Quem errou tem de sair do erro sabendo o que digitar."""
+    with pytest.raises(typer.BadParameter) as e:
+        _parse_palavras([], comando="parastudio")
+
+    msg = str(e.value)
+    for esperado in ("parastudio raml", "parastudio api", "parastudio force"):
+        assert esperado in msg, msg
 
 
 def test_force_sozinho():
-    p = _parse_palavras(["force"])
+    p = _parse_palavras(["force"], comando="pararepo")
     assert p.parte is None and p.force
 
 
-def test_parte_sem_force():
-    assert _parse_palavras(["raml"]).parte == "raml"
-    assert _parse_palavras(["api"]).parte == "api"
-    assert not _parse_palavras(["raml"]).force
+def test_parte_sozinha():
+    assert _parse_palavras(["raml"], comando="pararepo").parte == "raml"
+    assert _parse_palavras(["api"], comando="pararepo").parte == "api"
+    assert not _parse_palavras(["raml"], comando="pararepo").force
 
 
-def test_ordem_nao_importa():
-    """No chat ninguem lembra a ordem — todas as formas tem de valer."""
-    for palavras in (["raml", "force"], ["force", "raml"]):
-        p = _parse_palavras(palavras)
-        assert (p.parte, p.force) == ("raml", True), palavras
+def test_force_nao_se_combina_com_parte():
+    """`raml`/`api` juntam, `force` sobrescreve — pedir os dois e contraditorio.
+
+    Recusar e melhor que escolher um: as duas leituras possiveis diferem em perder ou nao
+    o trabalho do usuario, e nao ha default seguro para essa ambiguidade.
+    """
+    for palavras in (["raml", "force"], ["force", "api"]):
+        with pytest.raises(typer.BadParameter, match="nao se combina"):
+            _parse_palavras(palavras, comando="pararepo")
 
 
-def test_ordem_nao_importa_com_tres_palavras():
-    for palavras in (
-        ["raml", "force", "resolvido"],
-        ["resolvido", "raml", "force"],
-        ["force", "resolvido", "raml"],
-    ):
-        p = _parse_palavras(palavras)
-        assert (p.parte, p.force, p.resolvido) == ("raml", True, True), palavras
+def test_o_erro_de_combinacao_mostra_as_duas_saidas():
+    with pytest.raises(typer.BadParameter) as e:
+        _parse_palavras(["raml", "force"], comando="pararepo")
+
+    msg = str(e.value)
+    assert "pararepo raml" in msg and "pararepo force" in msg, msg
 
 
-def test_aceita_as_palavras_em_portugues():
-    """Quem digita em portugues escreve 'forca' ou 'resolvi'."""
-    assert _parse_palavras(["forca"]).force
-    assert _parse_palavras(["força"]).force
-    assert _parse_palavras(["resolvi"]).resolvido
-    assert _parse_palavras(["combinei"]).resolvido
+def test_aceita_force_em_portugues():
+    """Quem digita em portugues escreve 'forca'."""
+    assert _parse_palavras(["forca"], comando="pararepo").force
+    assert _parse_palavras(["força"], comando="pararepo").force
 
 
 def test_maiuscula_e_espaco_nao_atrapalham():
-    assert _parse_palavras([" FORCE "]).force
-    assert _parse_palavras(["RAML"]).parte == "raml"
+    assert _parse_palavras([" FORCE "], comando="pararepo").force
+    assert _parse_palavras(["RAML"], comando="pararepo").parte == "raml"
 
 
 def test_aceita_a_palavra_com_hifen_por_engano():
     """Quem tem habito de CLI digita `--force`; nao ha motivo para recusar."""
-    assert _parse_palavras(["--force"]).force
-    assert _parse_palavras(["--resolvido"]).resolvido
+    assert _parse_palavras(["--force"], comando="pararepo").force
+    assert _parse_palavras(["--raml"], comando="pararepo").parte == "raml"
 
 
-def test_vocabulario_e_curto_de_proposito():
+def test_o_vocabulario_tem_tres_palavras():
     """Cada palavra a mais e uma coisa a mais para o usuario — ou a IA — errar.
 
     Este teste falha quando alguem acrescenta uma palavra: e um lembrete de justificar a
-    adicao, nao um impedimento. Nao entraram: "previa" (sem `force` ja e previa), "tudo"
-    (e o padrao) e uma palavra para apagar arquivos.
+    adicao, nao um impedimento. Sairam: "resolvido" (o conflito e resolvido na hora, sem
+    segundo comando), "previa" e "tudo".
     """
-    from mule_bridge.cli import PALAVRAS
-
-    assert set(PALAVRAS) == {"raml", "api", "force", "resolvido"}
+    assert set(PALAVRAS) == {"raml", "api", "force"}
 
 
 def test_palavra_que_saiu_do_vocabulario_e_recusada():
-    """`previa` e `tudo` viraram erro claro, em vez de serem ignoradas em silencio."""
-    import typer
-
-    for palavra in ("previa", "tudo", "apagar"):
+    """Viraram erro claro, em vez de serem ignoradas em silencio."""
+    for palavra in ("resolvido", "previa", "tudo", "apagar"):
         with pytest.raises(typer.BadParameter, match="Nao entendi"):
-            _parse_palavras([palavra])
+            _parse_palavras([palavra], comando="pararepo")
 
 
 def test_palavra_desconhecida_e_erro():
     """Melhor recusar que adivinhar: um typo nao pode virar gravacao silenciosa."""
-    import typer
-
     with pytest.raises(typer.BadParameter, match="Nao entendi"):
-        _parse_palavras(["aplicar"])
+        _parse_palavras(["aplicar"], comando="pararepo")
 
 
 def test_duas_partes_diferentes_e_erro():
-    import typer
-
-    with pytest.raises(typer.BadParameter, match="uma parte"):
-        _parse_palavras(["raml", "api"])
+    with pytest.raises(typer.BadParameter, match="uma palavra so"):
+        _parse_palavras(["raml", "api"], comando="pararepo")
 
 
 # --- Pelo comando, ponta a ponta ------------------------------------------------
@@ -199,8 +200,8 @@ def _rodar(projeto, *args):
     return runner.invoke(app, ["pararepo", *args, "-w", str(projeto["work"])])
 
 
-def test_sem_force_a_copia_nao_grava(projeto):
-    """O caso que motivou a mudanca: `pararepo` sozinho nao pode escrever no repo."""
+def test_pararepo_sem_palavra_nao_escreve(projeto):
+    """O comando nu nao roda: recusa antes de tocar em qualquer arquivo."""
     alvo = projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml"
     (projeto["studio"] / "studio-pedidos" / "src" / "main" / "mule" / "application.xml").write_text(
         "<mule><flow name='do-studio'/></mule>\n", encoding="utf-8"
@@ -209,13 +210,18 @@ def test_sem_force_a_copia_nao_grava(projeto):
 
     r = _rodar(projeto)
 
-    assert r.exit_code == 0, r.output
-    assert alvo.read_text(encoding="utf-8") == antes, "sem force nao pode gravar"
-    assert "previa" in r.output
-    assert "pararepo force" in r.output, "e tem de ensinar como gravar"
+    assert r.exit_code != 0, r.output
+    assert alvo.read_text(encoding="utf-8") == antes, "nao pode gravar sem palavra"
 
 
-def test_com_force_a_copia_grava(projeto):
+def test_parastudio_sem_palavra_nao_escreve(projeto):
+    """A recusa vale nos dois comandos: a grade e simetrica."""
+    r = runner.invoke(app, ["parastudio", "-w", str(projeto["work"])])
+
+    assert r.exit_code != 0, r.output
+
+
+def test_pararepo_force_sobrescreve(projeto):
     alvo = projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml"
     (projeto["studio"] / "studio-pedidos" / "src" / "main" / "mule" / "application.xml").write_text(
         "<mule><flow name='do-studio'/></mule>\n", encoding="utf-8"
@@ -227,54 +233,41 @@ def test_com_force_a_copia_grava(projeto):
     assert "do-studio" in alvo.read_text(encoding="utf-8")
 
 
-def test_force_no_raml_grava(projeto):
-    """`pararepo raml force` faz o mesmo que a flag `--aplicar` fazia."""
-    r = _rodar(projeto, "raml", "force")
-
-    assert r.exit_code == 0, r.output
-    assert (projeto["raml"] / "domain" / "novo.raml").is_file()
-
-
-def test_raml_sem_force_e_previa(projeto):
+def test_pararepo_raml_grava_na_hora(projeto):
+    """Sem prévia e sem segundo comando: a palavra `raml` ja e a autorizacao."""
     r = _rodar(projeto, "raml")
 
     assert r.exit_code == 0, r.output
-    assert not (projeto["raml"] / "domain" / "novo.raml").exists()
-    assert "previa" in r.output
-
-
-def test_aplicar_continua_valendo(projeto):
-    """A flag antiga nao pode quebrar para quem ja a usa em script."""
-    r = _rodar(projeto, "raml", "--aplicar")
-
-    assert r.exit_code == 0, r.output
     assert (projeto["raml"] / "domain" / "novo.raml").is_file()
 
 
-def test_dry_run_vence_o_force(projeto):
-    """Pedir os dois e contraditorio; a previa e a leitura segura."""
-    alvo = projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml"
+def test_pararepo_api_grava_na_hora(projeto):
     (projeto["studio"] / "studio-pedidos" / "src" / "main" / "mule" / "application.xml").write_text(
-        "<mule><flow name='x'/></mule>\n", encoding="utf-8"
+        "<mule><flow name='do-scaffold'/></mule>\n", encoding="utf-8"
     )
-    antes = alvo.read_text(encoding="utf-8")
 
-    _rodar(projeto, "force", "--dry-run")
+    r = _rodar(projeto, "api")
 
-    assert alvo.read_text(encoding="utf-8") == antes
+    assert r.exit_code == 0, r.output
+    alvo = projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml"
+    assert "do-scaffold" in alvo.read_text(encoding="utf-8")
 
 
-def test_parastudio_nao_exige_force(projeto):
-    """A protecao e so do lado que escreve no repositorio.
+def test_dry_run_nao_grava(projeto):
+    """A flag escondida continua servindo a quem automatiza."""
+    r = _rodar(projeto, "raml", "--dry-run")
 
-    `parastudio` grava no workspace do Studio, que e descartavel — reimportar o projeto
-    reconstroi. Exigir a palavra ali seria atrito sem ganho.
-    """
+    assert r.exit_code == 0, r.output
+    assert not (projeto["raml"] / "domain" / "novo.raml").exists()
+
+
+def test_parastudio_api_copia_para_o_workspace(projeto):
+    """O destino e o workspace, que e descartavel — reimportar o projeto reconstroi."""
     (projeto["work"] / "pedidos-api" / "src" / "main" / "mule" / "application.xml").write_text(
         "<mule><flow name='meu'/></mule>\n", encoding="utf-8"
     )
 
-    r = runner.invoke(app, ["parastudio", "-w", str(projeto["work"])])
+    r = runner.invoke(app, ["parastudio", "api", "-w", str(projeto["work"])])
 
     assert r.exit_code == 0, r.output
     destino = (

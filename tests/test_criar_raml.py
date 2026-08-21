@@ -65,17 +65,18 @@ def cenario(tmp_path, monkeypatch):
     return {"work": work, "studio": studio}
 
 
-def test_previa_nao_cria_a_pasta(cenario):
-    result = runner.invoke(app, ["pararepo", "raml", "-w", str(cenario["work"])])
+def test_dry_run_nao_cria_a_pasta(cenario):
+    result = runner.invoke(
+        app, ["pararepo", "raml", "-w", str(cenario["work"]), "--dry-run"]
+    )
 
     assert result.exit_code == 0, result.output
-    assert "previa" in result.output.lower()
     assert not (cenario["work"] / "pedidos-raml").exists()
 
 
 def test_cria_a_pasta_com_a_versao_do_studio(cenario):
     result = runner.invoke(
-        app, ["pararepo", "raml", "-w", str(cenario["work"]), "--aplicar"]
+        app, ["pararepo", "raml", "-w", str(cenario["work"])]
     )
 
     assert result.exit_code == 0, result.output
@@ -85,7 +86,7 @@ def test_cria_a_pasta_com_a_versao_do_studio(cenario):
 
 
 def test_grava_o_pareamento_da_pasta_criada(cenario):
-    runner.invoke(app, ["pararepo", "raml", "-w", str(cenario["work"]), "--aplicar"])
+    runner.invoke(app, ["pararepo", "raml", "-w", str(cenario["work"])])
 
     cfg = config.load(cenario["work"])
     assert cfg.raml is not None
@@ -103,7 +104,7 @@ def test_nao_sobrescreve_pasta_existente_fora_da_config(cenario):
     (pasta / "api.raml").write_text("#%RAML 1.0\ntitle: MEU TRABALHO\n", encoding="utf-8")
 
     result = runner.invoke(
-        app, ["pararepo", "raml", "-w", str(cenario["work"]), "--aplicar"]
+        app, ["pararepo", "raml", "-w", str(cenario["work"])]
     )
 
     assert "MEU TRABALHO" in (pasta / "api.raml").read_text(encoding="utf-8"), (

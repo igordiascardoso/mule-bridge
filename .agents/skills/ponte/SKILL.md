@@ -6,41 +6,71 @@ description: "parastudio | pararepo | status | init — sincroniza um projeto Mu
 # ponte
 
 Camada fina sobre a CLI `mule-bridge`. **Nao reimplemente nada aqui** — toda a logica
-(descoberta, sync, reescrita do `pom.xml`) vive na CLI. Esta skill so escolhe o comando
-certo e reporta o resultado.
+(descoberta, sync, juncao, reescrita do `pom.xml`) vive na CLI. Esta skill so escolhe o
+comando certo, resolve conflito quando aparece, e reporta o resultado.
 
-## Argumentos
+## Os oito comandos
 
-| O usuario digita | Comando |
+```
+ponte parastudio raml      aponta o pom.xml do Studio para a pasta local do RAML
+                           (ou copia, se houver pasta de RAML no workspace)
+ponte parastudio api       copia a API do repositorio para o workspace
+ponte parastudio force     copia tudo por cima do workspace, sem juntar
+ponte parastudio           RECUSA: falta a palavra
+
+ponte pararepo raml        junta a versao nova do RAML com as edicoes locais, e grava
+ponte pararepo api         junta o que o Studio mudou com o que o usuario mudou, e grava
+ponte pararepo force       copia por cima do repositorio, SEM juntar
+ponte pararepo             RECUSA: falta a palavra
+```
+
+`parastudio` escreve no workspace do Studio; `pararepo` escreve no repositorio do usuario.
+
+## O vocabulario sao tres palavras
+
+`raml`, `api`, `force` — e **uma delas e obrigatoria**. Nao ha mais nada: nenhuma flag a
+descobrir, nenhuma opcao escondida. Uma palavra fora dessa lista e recusada com erro, de
+proposito: um typo nao pode virar gravacao.
+
+**Nao invente flag.** Se o usuario pedir algo que o vocabulario nao cobre, diga isso em vez
+de tentar uma flag.
+
+## A palavra `force` e do usuario, nao sua
+
+`force` **sobrescreve sem juntar** — e a unica palavra que pode fazer o trabalho do usuario
+ser perdido. **Nunca acrescente `force` por conta propria**, em nenhum dos dois comandos. Use
+apenas quando o usuario tiver digitado a palavra ele mesmo.
+
+Quando ele pedir para trazer algo do Studio, o comando certo e quase sempre `pararepo raml`
+ou `pararepo api`, que **juntam** e nao perdem nada. `pararepo force` e para o caso raro de
+querer descartar o proprio trabalho de proposito — se parecer que e isso que ele quer,
+confirme antes.
+
+`force` nao se combina com `raml`/`api`: a CLI recusa `pararepo raml force`.
+
+## Traduzindo o pedido
+
+| O usuario diz | Comando |
 |---|---|
-| `parastudio` | `ponte parastudio` |
-| `pararepo` | `ponte pararepo` |
-| `status` | `ponte status` |
-| `init`, `parear`, `configurar` | ver **init** abaixo |
+| "manda pro Studio", "sincroniza pro Studio" | `ponte parastudio api` |
+| "quero editar o RAML e o Studio ler" | `ponte parastudio raml` |
+| "traz o que o Studio mudou", "pega o scaffold" | `ponte pararepo api` |
+| "atualiza o raml", "saiu versao nova no Exchange" | `ponte pararepo raml` |
+| "o que esta pareado?", "como esta?" | `ponte status` |
+| `init`, "parear", "configurar" | ver **init** abaixo |
 
-Cada direcao aceita uma parte opcional, quando o usuario quer mover so um lado:
-
-| O usuario digita | Comando |
-|---|---|
-| `parastudio raml` | `ponte parastudio raml` |
-| `parastudio api` | `ponte parastudio api` |
-| `pararepo raml`, `atualizar o raml`, `trazer o raml novo` | `ponte pararepo raml` — ver abaixo |
-| `pararepo api` | `ponte pararepo api` |
-
-Sem a parte, vao os dois — que e o caso normal, porque uma mudanca no RAML costuma
-implicar mudanca na API.
+Depois do `parastudio` **nao ha passo extra**: o Studio detecta a mudanca no disco e
+redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
 
 ### Sem argumento nenhum
 
-`/ponte` sozinho e o caso mais comum — o usuario pode nem saber quais argumentos
-existem. **Nunca sincronize por conta propria aqui.** Rode `ponte status` e decida
-pelo resultado:
+`/ponte` sozinho e o caso mais comum — o usuario pode nem saber quais argumentos existem.
+**Nunca sincronize por conta propria aqui.** Rode `ponte status` e decida pelo resultado:
 
-- **Deu erro de config ausente** — o projeto ainda nao foi pareado. Nao peca para o usuario
-  digitar outro comando: conduza o **init** (abaixo) na hora, ja mostrando as opcoes.
+- **Erro de config ausente** — o projeto ainda nao foi pareado. Conduza o **init** (abaixo)
+  na hora, ja mostrando as opcoes.
 - **Mostrou o pareamento** — apresente a tabela e diga, em uma linha, o que ele pode fazer
-  em seguida: `/ponte parastudio` para mandar pro Studio, `/ponte pararepo` para
-  trazer de volta.
+  em seguida.
 
 ## Antes de sincronizar
 
@@ -50,72 +80,45 @@ pelo resultado:
 2. Se o usuario nao rodou `init` ainda, o comando falha pedindo isso. Nao invente a config
    nem escreva o `.mule-bridge.toml` na mao.
 
-## Executando
+## pararepo raml e api — juncao, nao copia
 
-Rode o comando direto no terminal e mostre a tabela de resultado ao usuario:
-
-```bash
-ponte parastudio     # o que voce editou -> workspace do Studio
-ponte pararepo       # workspace do Studio -> seu repositorio
-ponte status         # nao altera nada
-```
-
-Depois do `parastudio` **nao ha passo extra**: o Studio detecta a mudanca no disco e
-redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
-
-## Quando usar --dry-run
-
-Rode `--dry-run` antes do sync de verdade quando:
-
-- for a primeira sincronizacao deste projeto na sessao;
-- o usuario demonstrar duvida sobre o que vai mudar;
-- for um `pararepo` (o destino sao os arquivos versionados do usuario).
-
-Mostre o resultado e confirme antes de rodar sem a flag.
-
-## --delete exige confirmacao
-
-`--delete` apaga arquivos no destino. **Nunca** passe essa flag por conta propria — so
-quando o usuario pedir explicitamente, e mesmo assim rode antes com `--dry-run` e mostre a
-lista do que sera removido. No `pararepo`, o destino e o repositorio do usuario: apagar ali
-pode destruir trabalho nao commitado.
-
-## pararepo raml — juncao, nao copia
-
-`pararepo raml` nao copia por cima: traz a versao nova do RAML preservando as edicoes
-locais. A versao vem do `pom.xml` do lado do Studio, que registra o update feito la.
-
-Rode primeiro sem `--aplicar`, que so mostra o que aconteceria:
+Os dois trazem o que mudou do outro lado **preservando as edicoes locais**: o que os dois
+lados mexeram em pontos diferentes e juntado sozinho. Eles gravam na hora — a palavra ja e
+a autorizacao, nao ha previa nem segundo comando.
 
 ```bash
 ponte pararepo raml
 ```
 
-**Se nao houver conflito**, mostre a tabela ao usuario e pergunte se aplica. So entao:
+Mostre a tabela de resultado ao usuario. No `raml`, lembre-o de apontar o `pom.xml` para a
+versao nova quando for commitar — o comando mexe so na pasta do RAML.
 
-```bash
-ponte pararepo raml --aplicar
-```
+**Se a pasta do RAML nao existir** no repositorio, o comando a cria, extraindo a versao que
+o projeto do Studio usa. Nao pergunte nada nesse caso — nao ha edicao local para preservar.
 
-Lembre o usuario de apontar o `pom.xml` para a versao nova quando for commitar — o comando
-mexe so na pasta do RAML.
+### Quando houver conflito — voce resolve
 
-### Quando houver conflito
+Quando os dois lados mexeram nas **mesmas linhas**, a CLI pergunta qual fica. Numa sessao de
+agente nao ha terminal para responder, entao ela imprime os dois lados e **nao escreve
+nada**. E aqui que voce entra. Para cada arquivo em conflito:
 
-O comando lista os arquivos em conflito com os dois lados e **nao escreve nada**. E aqui
-que voce entra. Para cada conflito:
-
-1. Leia as duas versoes que o comando mostrou (a do usuario e a do Exchange).
-2. **Se as duas intencoes cabem juntas** — ex: um escreveu "Placa no padrao Mercosul" e o
+1. Leia as duas versoes que o comando mostrou (a do usuario e a que veio).
+2. **Se os dois so ACRESCENTARAM coisas diferentes no mesmo lugar** — tipicamente o fim do
+   arquivo, ou dentro do mesmo bloco — nao ha incompatibilidade nenhuma: o conflito existe
+   so porque nao ha como saber a ordem. Proponha manter **os dois**, um depois do outro (o
+   que veio primeiro, o do usuario em seguida), e confirme.
+3. **Se as duas intencoes cabem juntas** — ex: um escreveu "Placa no padrao Mercosul" e o
    outro "Placa (obrigatorio)" — proponha um texto que preserve as duas, e **pergunte ao
    usuario** se pode aplicar. Nao aplique calado.
-3. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
+4. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
    combinacao. Mostre os dois lados e pergunte qual vale.
-4. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
-   rode `ponte pararepo raml --aplicar` de novo.
+5. Depois de o usuario decidir, **edite o arquivo na pasta** com o conteudo acordado e rode
+   o mesmo comando de novo. Sem conflito pendente, ele grava.
 
 **Nunca** escolha um lado por conta propria nem descarte a edicao do usuario para "resolver
-logo". Uma edicao perdida em silencio e o pior resultado possivel aqui.
+logo". Uma edicao perdida em silencio e o pior resultado possivel aqui. E **nunca** deixe
+marcador de merge (`<<<<<<<`) no arquivo — o conteudo que voce grava tem de ser o texto
+final, valido.
 
 ## init
 
@@ -129,8 +132,9 @@ quando ha terminal, mas **dentro de uma sessao de agente nao ha** — entao cond
    ponte init
    ```
 
-2. **Mostre as opcoes ao usuario e pergunte qual e a correta.** A escolha do par de pastas
-   e dele por design — a ferramenta nunca adivinha, e voce tambem nao deve.
+2. **Mostre as opcoes ao usuario e pergunte qual e a correta** — inclusive quando houver um
+   candidato so. O `init` pergunta cada escolha de proposito: um pareamento errado nao da
+   erro na hora, so aparece depois, quando um comando escreve no lugar indevido.
 
 3. Rode de novo com a escolha dele:
 
@@ -145,10 +149,16 @@ workspace nao esta num caminho padrao, e `--force` para refazer uma config exist
 
 Rode `init` uma vez por repositorio: o resultado fica no `.mule-bridge.toml`.
 
+**Se ele avisar que nao ha pasta de RAML**, repasse a instrucao que ele mesmo deu:
+`ponte pararepo raml` cria a pasta com a especificacao que o Studio usa. Nao diga ao
+usuario que o comando vai falhar — ele cria a pasta.
+
 ## Erros comuns
 
 | Mensagem | O que fazer |
 |---|---|
+| `Falta a palavra` | O comando foi rodado nu. Escolha `raml`, `api` ou `force` conforme o pedido. |
+| `nao se combina` | Vieram `force` e `raml`/`api` juntos. Decida: juntar (`raml`/`api`) ou sobrescrever (`force`). |
 | `Nenhuma config encontrada` | O usuario precisa rodar o `init` na raiz do repo. |
 | `Origem nao existe` | O caminho no `.mule-bridge.toml` mudou de lugar; rode `init` de novo com `--force`. |
 | `Este projeto nao tem pasta de RAML configurada` | Pediram `raml` mas o `init` foi feito sem RAML. Refaca com `--force`. |

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.syntax import Syntax
 from rich.table import Table
 
 from . import __version__, config, discovery, editorconfig, pomrewrite, reconcile
@@ -272,7 +273,7 @@ def init(
     if cfg.raml is None:
         console.print(
             "\n[yellow]Sem pasta de RAML neste repositorio.[/]\n"
-            "Rode [bold]ponte pararepo raml force[/] para cria-la com a "
+            "Rode [bold]ponte pararepo raml[/] para cria-la com a "
             "especificacao que o Studio usa."
         )
 
@@ -319,34 +320,32 @@ def _parse_parte(parte: str | None) -> str | None:
     raise typer.BadParameter(f"Parte {parte!r} desconhecida — use 'raml', 'api', ou nada (tudo).")
 
 
-#: As únicas palavras que os comandos aceitam. Deliberadamente poucas: cada palavra a mais
-#: é uma coisa a mais para o usuário — ou para o agente de IA agindo por ele — errar.
+#: As unicas palavras que os comandos aceitam, e nada mais. Cada palavra a mais e uma
+#: coisa a mais para o usuario — ou para o agente de IA agindo por ele — errar.
 #:
-#: Não entram aqui: "previa" (sem `force` já é prévia), "tudo" (é o padrão), nem uma palavra
-#: para apagar arquivos, que continua só na flag `--delete` por ser destrutiva e rara.
+#: `raml` e `api` dizem sobre o que agir; `force` sobrescreve o destino sem juntar. Uma
+#: das tres e obrigatoria: sem palavra, o comando recusa em vez de adivinhar.
 PALAVRAS: dict[str, tuple[str, ...]] = {
     "raml": ("raml",),
     "api": ("api",),
     "force": ("force", "forca", "força"),
-    "resolvido": ("resolvido", "resolvi", "combinei"),
 }
 
 
 @dataclass
 class Pedido:
-    """O que o usuário pediu, já traduzido das palavras do comando."""
+    """O que o usuario pediu, ja traduzido das palavras do comando."""
 
     parte: str | None = None
     force: bool = False
-    resolvido: bool = False
 
 
-def _parse_palavras(palavras: list[str] | None) -> Pedido:
-    """Traduz as palavras do comando, em qualquer ordem.
+def _parse_palavras(palavras: list[str] | None, *, comando: str) -> Pedido:
+    """Traduz as palavras do comando, exigindo exatamente uma.
 
-    `ponte pararepo raml force` e `ponte pararepo force raml` valem igual: ninguém memoriza
-    sintaxe no meio de uma conversa. Uma palavra desconhecida é recusada em vez de ignorada
-    — um typo não pode virar gravação.
+    Uma palavra desconhecida e recusada em vez de ignorada — um typo nao pode virar
+    gravacao. E a ausencia de palavra tambem: `ponte pararepo` sozinho nao roda, porque
+    a palavra e o que diz o que fazer.
     """
     pedido = Pedido()
 
@@ -357,15 +356,28 @@ def _parse_palavras(palavras: list[str] | None) -> Pedido:
         if canonica in {"raml", "api"}:
             if pedido.parte is not None and pedido.parte != canonica:
                 raise typer.BadParameter(
-                    f"Escolha uma parte só: veio '{pedido.parte}' e '{canonica}'."
+                    f"Escolha uma palavra so: veio '{pedido.parte}' e '{canonica}'."
                 )
             pedido.parte = canonica
-        elif canonica is not None:
-            setattr(pedido, canonica, True)
+        elif canonica == "force":
+            pedido.force = True
         else:
             raise typer.BadParameter(
-                f"Nao entendi {bruta!r} — use 'raml', 'api', 'force', ou nada."
+                f"Nao entendi {bruta!r} — use 'raml', 'api' ou 'force'."
             )
+
+    if pedido.force and pedido.parte is not None:
+        raise typer.BadParameter(
+            f"'force' sobrescreve tudo e nao se combina com '{pedido.parte}'. "
+            f"Escolha um: `ponte {comando} {pedido.parte}` ou "
+            f"`ponte {comando} force`."
+        )
+
+    if pedido.parte is None and not pedido.force:
+        raise typer.BadParameter(
+            f"Falta a palavra: `ponte {comando} raml`, `ponte {comando} api` ou "
+            f"`ponte {comando} force`."
+        )
 
     return pedido
 
@@ -387,17 +399,89 @@ def _run(
     _report(plans, dry_run)
 
 
+def _mostrar_conflito(c: reconcile.Conflito) -> None:
+    """Imprime os dois lados do arquivo em conflito, para quem for decidir."""
+    console.print(
+        f"\n[bold yellow]{c.caminho}[/] — as duas versoes mexeram nas mesmas linhas"
+    )
+    console.print("\n[cyan]1.[/] a sua versao (a que esta no repositorio):")
+    console.print(Syntax(c.meu, "yaml", theme="ansi_dark", line_numbers=False))
+    console.print("[cyan]2.[/] a versao que veio:")
+    console.print(Syntax(c.novo, "yaml", theme="ansi_dark", line_numbers=False))
+
+
+def _resolver_conflitos(r: reconcile.Reconciliacao) -> dict[str, str]:
+    """Resolve cada conflito na hora, perguntando — nunca deixa marcador no arquivo.
+
+    Sem terminal interativo (agente de IA no chat, IDE, CI) nao ha como perguntar: os dois
+    lados sao impressos e o erro pede que quem chamou combine as versoes. E de proposito
+    que nada seja gravado nesse caso — escolher um lado calado e onde uma mudanca se perde.
+    """
+    resolucoes: dict[str, str] = {}
+
+    for c in r.conflitos:
+        _mostrar_conflito(c)
+        try:
+            escolha = typer.prompt(
+                "Fica qual? 1 = a sua, 2 = a que veio, 3 = eu escrevo",
+                default="1",
+            )
+        except (typer.Abort, EOFError, OSError) as exc:
+            arquivos = ", ".join(x.caminho for x in r.conflitos)
+            raise NonInteractiveError(
+                f"Conflito em {arquivos} — nao ha terminal interativo para perguntar, "
+                "e nada foi escrito.\n"
+                "Combine as duas versoes mostradas acima no arquivo e rode de novo."
+            ) from exc
+
+        valor = escolha.strip().lower()
+        if valor in {"2", "veio", "nova"}:
+            resolucoes[c.caminho] = c.novo
+        elif valor in {"3", "escrevo", "escrever"}:
+            resolucoes[c.caminho] = _digitar_conteudo(c.caminho)
+        else:
+            resolucoes[c.caminho] = c.meu
+
+    return resolucoes
+
+
+def _digitar_conteudo(caminho: str) -> str:
+    """Le o conteudo final de um arquivo, colado no terminal, ate uma linha com so um ponto."""
+    console.print(
+        f"[dim]Cole o conteudo final de {caminho} e termine com uma linha "
+        "contendo so um ponto.[/]"
+    )
+    linhas: list[str] = []
+    while True:
+        try:
+            linha = typer.prompt("", prompt_suffix="", default="", show_default=False)
+        except (typer.Abort, EOFError, OSError) as exc:
+            raise NonInteractiveError(
+                f"Nao ha terminal interativo para digitar o conteudo de {caminho}."
+            ) from exc
+        if linha.strip() == ".":
+            break
+        linhas.append(linha)
+    return "\n".join(linhas) + "\n"
+
+
 @app.command()
 def parastudio(
     palavras: list[str] | None = typer.Argument(
-        None, help="'raml' ou 'api' para mandar so uma parte. Sem nada, manda as duas."
+        None, help="'raml', 'api' ou 'force'. Uma delas e obrigatoria."
     ),
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
     delete: bool = typer.Option(False, "--delete", hidden=True),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", hidden=True),
 ) -> None:
-    """Manda o que voce editou aqui para o workspace do Studio."""
-    p = _parse_palavras(palavras)
+    """Manda para o workspace do Studio o que voce editou aqui.
+
+    
+    ponte parastudio raml     aponta o Studio para a sua pasta de RAML
+    ponte parastudio api      copia a API do repositorio para o workspace
+    ponte parastudio force    sobrescreve o workspace inteiro
+    """
+    p = _parse_palavras(palavras, comando="parastudio")
 
     if p.parte == "raml":
         try:
@@ -413,55 +497,42 @@ def parastudio(
             # a referencia no `pom.xml`, entao e ela que apontamos aqui.
             _apontar_raml_local(cfg, dry_run)
             return
+
+    # `force` manda as duas partes; `raml`/`api` filtram. O destino e o workspace, que e
+    # descartavel — por isso aqui a copia direta nao precisa de confirmacao.
     _run(Direction.PUSH, work_root, delete, dry_run, p.parte)
 
 
 @app.command()
 def pararepo(
     palavras: list[str] | None = typer.Argument(
-        None,
-        help="'raml' ou 'api' para trazer so uma parte, e 'force' para gravar de verdade.",
+        None, help="'raml', 'api' ou 'force'. Uma delas e obrigatoria."
     ),
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
     delete: bool = typer.Option(False, "--delete", hidden=True),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", hidden=True),
-    aplicar: bool = typer.Option(False, "--aplicar", hidden=True),
-    resolvido: bool = typer.Option(False, "--resolvido", hidden=True),
 ) -> None:
     """Traz para o seu repositorio o que mudou no workspace do Studio.
 
-    Sem `force`, so mostra o que faria. Acrescente a palavra para gravar:
+    
+    ponte pararepo raml     junta a versao nova do RAML com as suas edicoes
+    ponte pararepo api      junta o que o Studio mudou com o que voce mudou
+    ponte pararepo force    sobrescreve o repositorio, sem juntar
 
-        ponte pararepo force
-        ponte pararepo raml force
-
-    Aceita tambem `resolvido`, depois de voce combinar um conflito na mao.
-
-    `pararepo raml` nao e uma copia: ele traz a versao nova do RAML **juntando** com as
-    suas edicoes, para que nada do seu trabalho seja sobrescrito.
+    Com `raml` ou `api` nada do seu trabalho e perdido: o que os dois lados mexeram em
+    lugares diferentes o merge junta sozinho, e o que colidiu na mesma linha ele pergunta.
     """
-    p = _parse_palavras(palavras)
-    # Palavras, e nao flags, porque este comando escreve no repositorio do usuario e o uso
-    # principal e digitado no chat de um agente de IA. Uma palavra a mais no comando e
-    # deliberada de um jeito que `--aplicar` no fim da linha nao e.
-    aplicar = aplicar or p.force
-    resolvido = resolvido or p.resolvido
+    p = _parse_palavras(palavras, comando="pararepo")
 
     if p.parte == "raml":
-        _juntar_raml(work_root, aplicar, dry_run, resolvido=resolvido)
+        _juntar_raml(work_root, dry_run)
         return
     if p.parte == "api":
-        _juntar_api(work_root, aplicar, dry_run, resolvido=resolvido)
+        _juntar_api(work_root, dry_run)
         return
-    if not aplicar and not dry_run:
-        # Sem `force`, a copia direta tambem e so previa: o destino aqui e o repositorio.
-        _run(Direction.PULL, work_root, delete, True, p.parte)
-        console.print(
-            "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo force[/bold] "
-            "para gravar.[/]"
-        )
-        return
-    _run(Direction.PULL, work_root, delete, dry_run, p.parte)
+    # `force`: copia por cima, sem juntar. E a palavra que o usuario digitou que autoriza
+    # escrever no repositorio dele sem merge nenhum.
+    _run(Direction.PULL, work_root, delete, dry_run, None)
 
 
 def _apontar_raml_local(cfg: BridgeConfig, dry_run: bool) -> None:
@@ -505,9 +576,7 @@ def _apontar_raml_local(cfg: BridgeConfig, dry_run: bool) -> None:
         )
 
 
-def _juntar_api(
-    work_root: Path | None, aplicar: bool, dry_run: bool, *, resolvido: bool = False
-) -> None:
+def _juntar_api(work_root: Path | None, dry_run: bool = False) -> None:
     """Traz o que mudou na API do lado do Studio, juntando com as edicoes locais.
 
     A base e o ultimo commit do repositorio. Quando a pasta nao esta versionada nao ha
@@ -536,24 +605,12 @@ def _juntar_api(
 
     resolucoes = None
     if not r.limpo:
-        if not resolvido:
-            console.print(
-                "\n[yellow]Nada foi escrito.[/] Combine as duas versoes no arquivo e rode "
-                "de novo com [bold]force resolvido[/], ou peca ao seu agente de IA "
-                "para combina-las."
-            )
-            raise typer.Exit(1)
-        resolucoes = reconcile.resolucoes_do_disco(r, local)
-        console.print(
-            f"\n[yellow]resolvido:[/] aceitando o que esta em {cfg.api.work} "
-            f"para {', '.join(sorted(resolucoes))}."
-        )
+        try:
+            resolucoes = _resolver_conflitos(r)
+        except BridgeError as exc:
+            raise _fail(exc) from exc
 
-    if dry_run or not aplicar:
-        console.print(
-            "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo api force[/bold] "
-            "para gravar.[/]"
-        )
+    if dry_run:
         return
 
     escritos = reconcile.aplicar(r, local, resolucoes=resolucoes)
@@ -562,16 +619,13 @@ def _juntar_api(
 
 def _juntar_raml(
     work_root: Path | None,
-    aplicar: bool,
     dry_run: bool = False,
     versao_nova: str | None = None,
-    *,
-    resolvido: bool = False,
 ) -> None:
     """Traz a versao nova do RAML preservando as edicoes locais (base + suas por cima).
 
-    Nada e escrito enquanto houver conflito: os arquivos em conflito sao listados com os
-    dois lados, para serem resolvidos antes.
+    Os arquivos que os dois lados mexeram em lugares diferentes o merge junta sozinho. O
+    que colidiu na mesma linha e perguntado na hora, e nada fica com marcador no arquivo.
     """
     try:
         cfg = _load(_resolve_root(work_root))
@@ -591,10 +645,10 @@ def _juntar_raml(
                 config.save(cfg)
                 console.print(f"[dim]Adotando a pasta {candidata.name}, que ja existe.[/]")
             else:
-                _criar_pasta_raml(cfg, grupo, artefato, dry_run or not aplicar)
+                _criar_pasta_raml(cfg, grupo, artefato, dry_run)
                 return
         elif not (cfg.work_root / cfg.raml.work).is_dir():
-            _criar_pasta_raml(cfg, grupo, artefato, dry_run or not aplicar)
+            _criar_pasta_raml(cfg, grupo, artefato, dry_run)
             return
 
         if versao_nova is None:
@@ -611,25 +665,12 @@ def _juntar_raml(
     pasta_raml = cfg.work_root / cfg.raml.work
     resolucoes = None
     if not r.limpo:
-        if not resolvido:
-            console.print(
-                "\n[yellow]Nada foi escrito.[/] Combine as duas versoes no arquivo e rode "
-                "de novo com [bold]force resolvido[/], ou peca ao seu agente de IA "
-                "para combina-las."
-            )
-            raise typer.Exit(1)
-        # O usuario afirma ter combinado: o conteudo em disco passa a ser a resolucao.
-        resolucoes = reconcile.resolucoes_do_disco(r, pasta_raml)
-        console.print(
-            f"\n[yellow]resolvido:[/] aceitando o que esta em {cfg.raml.work} "
-            f"para {', '.join(sorted(resolucoes))}."
-        )
+        try:
+            resolucoes = _resolver_conflitos(r)
+        except BridgeError as exc:
+            raise _fail(exc) from exc
 
-    if dry_run or not aplicar:
-        console.print(
-            "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo raml force[/bold] "
-            "para gravar.[/]"
-        )
+    if dry_run:
         return
 
     escritos, commitou = reconcile.aplicar_em_dois_commits(
@@ -653,7 +694,9 @@ def _juntar_raml(
     )
 
 
-def _criar_pasta_raml(cfg: BridgeConfig, grupo: str, artefato: str, previa: bool) -> None:
+def _criar_pasta_raml(
+    cfg: BridgeConfig, grupo: str, artefato: str, dry_run: bool = False
+) -> None:
     """Cria a pasta do RAML na raiz do repositorio, extraindo a versao que o Studio usa.
 
     Sem pasta nao ha nada para preservar, entao nao ha o que perguntar: pega a versao que
@@ -687,11 +730,7 @@ def _criar_pasta_raml(cfg: BridgeConfig, grupo: str, artefato: str, previa: bool
     console.print(f"[bold]A pasta do RAML nao existe — criando de {artefato} {versao}.[/]")
     console.print(f"  destino: {destino}")
 
-    if previa:
-        console.print(
-            "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo raml force[/bold] "
-            "para criar.[/]"
-        )
+    if dry_run:
         return
 
     reconcile.extrair(reconcile.caminho_no_cache(grupo, artefato, versao), destino)
