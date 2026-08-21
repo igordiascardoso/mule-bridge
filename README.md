@@ -83,7 +83,7 @@ e redeploya sozinho.
 
 Você editou o RAML e sai uma versão nova no Exchange. Ou você mexeu num flow e o Studio
 gerou outros. Copiar por cima apagaria o seu trabalho — então `pararepo raml` e
-`pararepo api` não copiam: eles **juntam as duas versões**.
+`pararepo api` não copiam: eles fazem **merge** das duas versões.
 
 Arquivo por arquivo:
 
@@ -113,7 +113,7 @@ Você responde, ele grava, acabou. Não sobra marcador `<<<<<<<` no arquivo e n�
 comando para rodar.
 
 Num agente de IA não existe onde digitar a resposta — então ele mostra as duas versões e
-**não grava nada**. O agente junta e roda de novo.
+**não grava nada**. O agente faz o merge e roda de novo.
 
 ### Dois detalhes do `pararepo raml`
 
