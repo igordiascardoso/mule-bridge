@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__, config, discovery, pomrewrite, reconcile
+from . import __version__, config, discovery, editorconfig, pomrewrite, reconcile
 from .config import BridgeConfig, ProjectPair
 from .errors import BridgeError, ConfigError, DiscoveryError, NonInteractiveError
 from .sync import Direction, SyncPlan, sync_all
@@ -218,9 +218,13 @@ def init(
             work_root=work_root,
             studio_root=studio_root,
             api=ProjectPair(api.name, studio_api.name),
+            # O RAML costuma nao ter par no workspace: o Studio o consome como dependencia
+            # do Exchange, sem uma pasta propria. Guardamos a pasta local de todo modo,
+            # apontando para ela mesma — e o `pararepo raml` (que le do cache do Maven,
+            # nao do Studio) passa a funcionar.
             raml=(
-                ProjectPair(raml_local.name, studio_raml.name)
-                if raml_local and studio_raml
+                ProjectPair(raml_local.name, (studio_raml.name if studio_raml else raml_local.name))
+                if raml_local
                 else None
             ),
         )
@@ -235,6 +239,15 @@ def init(
             "\n[yellow]Sem pasta de RAML neste repositorio.[/]\n"
             "Rode [bold]ponte pararepo raml --aplicar[/] para cria-la com a "
             "especificacao que o Studio usa."
+        )
+
+    if editorconfig.precisa_config(work_root):
+        aninhados = ", ".join(editorconfig.repos_aninhados(work_root))
+        escrito = editorconfig.escrever(work_root)
+        console.print(
+            f"\n[dim]{aninhados} sao repositorios proprios — sem config, o editor "
+            f"mostraria so o da raiz.\nEscrevi {escrito.relative_to(work_root)} para as "
+            "edicoes deles aparecerem (VS Code, Trae, Cursor).[/]"
         )
 
 
@@ -300,6 +313,21 @@ def parastudio(
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
 ) -> None:
     """Manda o que voce editou aqui para o workspace do Studio."""
+    if _parse_parte(parte) == "raml":
+        try:
+            cfg = _load(_resolve_root(work_root))
+        except BridgeError as exc:
+            raise _fail(exc) from exc
+        if cfg.raml is not None and not (cfg.studio_root / cfg.raml.studio).is_dir():
+            # O Studio costuma consumir o RAML como dependencia, sem pasta propria: o
+            # `pom.xml` de la ja aponta para a pasta do repo. Copiar criaria lixo que
+            # ninguem le.
+            console.print(
+                f"[yellow]{cfg.raml.studio} nao existe no workspace — nao copiei nada.[/]\n"
+                "[dim]O Studio le o RAML da sua pasta pelo systemPath do pom.xml, "
+                "escrito pelo `parastudio api`. Nao ha o que mandar.[/]"
+            )
+            return
     _run(Direction.PUSH, work_root, delete, dry_run, parte)
 
 

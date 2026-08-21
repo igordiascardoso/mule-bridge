@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-46%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -133,6 +133,11 @@ Config gravada em c:\projetos\minha-api\.mule-bridge.toml
 ```
 
 O pareamento fica em `.mule-bridge.toml`, na raiz do repositório — o `init` roda uma vez só.
+
+Se as pastas do projeto forem repositórios git próprios (o caso comum: a API com seu
+remoto, ao lado da pasta do RAML), o `init` também escreve um `.vscode/settings.json` para
+que as edições feitas dentro delas apareçam no painel do editor — sem isso, VS Code e seus
+forks (Trae, Cursor) listam apenas o repositório da raiz.
 
 > Esse arquivo guarda o caminho do **seu** workspace, que não serve para os colegas.
 > Adicione-o ao `.gitignore` do projeto.
@@ -355,7 +360,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 46 testes
+pytest          # 54 testes
 ruff check .    # lint
 ```
 

@@ -91,3 +91,25 @@ def test_pararepo_so_raml(cfg, workspace):
 
     local = workspace["work"] / "pedidos-raml" / "api.raml"
     assert "veio do Studio" in local.read_text(encoding="utf-8")
+
+
+def test_parastudio_raml_sem_pasta_no_studio_nao_copia(cfg, workspace):
+    """Sem pasta correspondente no workspace, copiar criaria lixo que ninguem le."""
+    import shutil
+
+    from typer.testing import CliRunner
+
+    from mule_bridge import config as configmod
+    from mule_bridge.cli import app
+
+    shutil.rmtree(workspace["studio"] / "studio-pedidos-raml")
+    cfg.raml = ProjectPair("pedidos-raml", "studio-pedidos-raml")
+    configmod.save(cfg)
+
+    result = CliRunner().invoke(
+        app, ["parastudio", "raml", "-w", str(workspace["work"])], input=""
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "nao copiei nada" in result.output
+    assert not (workspace["studio"] / "studio-pedidos-raml").exists(), "nao pode criar"

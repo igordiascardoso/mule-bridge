@@ -116,3 +116,22 @@ def test_nao_sobrescreve_config_existente_sem_force(workspace):
     segunda = runner.invoke(app, argumentos, input="")
     assert segunda.exit_code == 1
     assert "--force" in segunda.output
+
+
+def test_raml_sem_par_no_studio_ainda_e_configurado(workspace):
+    """O Studio consome o RAML como dependencia, sem pasta propria — isso e normal.
+
+    Regressao: com `--studio-raml nenhuma` a secao [raml] nao era gravada, e o
+    `pararepo raml` passava a dizer que o projeto nao tinha RAML configurado.
+    """
+    result = runner.invoke(
+        app,
+        _args(workspace, api="pedidos-api", raml="pedidos-raml", studio_api="studio-pedidos")
+        + ["--studio-raml", "nenhuma"],
+        input="",
+    )
+
+    assert result.exit_code == 0, result.output
+    cfg = config.load(workspace["work"])
+    assert cfg.raml is not None, "a pasta local do RAML tem de ser guardada"
+    assert cfg.raml.work == "pedidos-raml"
