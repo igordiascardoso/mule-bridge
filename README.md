@@ -202,10 +202,10 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 
 | Comando | O que faz |
 |---|---|
-| `init` | Descobre os projetos dos dois lados e grava o pareamento. |
-| `status` | Mostra o pareamento atual e o que um `parastudio` faria agora. |
-| `parastudio` | Leva o que você editou para o workspace do Studio. |
-| `pararepo` | Traz de volta o que o Studio alterou por conta própria. |
+| `init` | Pareia o repositório com um projeto do workspace. Roda uma vez. |
+| `status` | Mostra o pareamento e o que um `parastudio` faria agora. Não altera nada. |
+| `parastudio` | Leva o que você editou para o workspace do Studio (**cópia**). |
+| `pararepo` | Traz o que mudou do lado do Studio (**junta**, não sobrescreve). |
 
 As duas direções aceitam uma parte opcional, quando só um lado mudou:
 
@@ -220,8 +220,31 @@ ponte parastudio         # os dois (padrão)
 | Flag | Efeito |
 |---|---|
 | `--dry-run`, `-n` | Mostra o que seria feito, sem alterar nada. |
+| `--aplicar` | **Só no `pararepo`**: grava o resultado da junção. Sem ela, é só prévia. |
 | `--delete` | Remove no destino os arquivos que já não existem na origem. |
 | `--work-root`, `-w` | Roda a partir de outro diretório, em vez do atual. |
+
+### As seis combinações
+
+| Comando | Direção | Como |
+|---|---|---|
+| `ponte parastudio` | repo → Studio | cópia (RAML + API) |
+| `ponte parastudio raml` | repo → Studio | cópia, só o RAML |
+| `ponte parastudio api` | repo → Studio | cópia, só a API + reescreve o `pom.xml` no destino |
+| `ponte pararepo` | Studio → repo | cópia (RAML + API) |
+| `ponte pararepo raml` | Exchange → repo | **junta** com suas edições |
+| `ponte pararepo api` | Studio → repo | **junta** com suas edições, base no último commit |
+
+O `pararepo` sem parte é cópia direta dos dois; use `raml` ou `api` para ter a junção que
+preserva seu trabalho.
+
+### O que nunca acontece
+
+- **O `pom.xml` do repositório nunca é sobrescrito.** No `parastudio` a reescrita para o
+  RAML local acontece só no destino; no `pararepo` o arquivo é ignorado. Seu repositório
+  segue sempre apontando para o Exchange com a versão travada.
+- **Nada é apagado sem `--delete`**, e essa flag nunca é passada por conta própria.
+- **Nada é escrito enquanto houver conflito** — nem os arquivos que deram certo.
 
 > **Nota:** sem `--delete`, o sync só copia — nada é apagado em nenhum dos lados.
 > No `parastudio` o destino é o workspace; no `pararepo`, o seu repositório.
