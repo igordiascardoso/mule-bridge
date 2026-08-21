@@ -90,3 +90,22 @@ def test_grava_o_pareamento_da_pasta_criada(cenario):
     cfg = config.load(cenario["work"])
     assert cfg.raml is not None
     assert cfg.raml.work == "pedidos-raml"
+
+
+def test_nao_sobrescreve_pasta_existente_fora_da_config(cenario):
+    """Config sem RAML mas pasta no disco: adota a pasta, nunca extrai por cima.
+
+    Regressao: a pasta podia conter trabalho local nao pareado, e extrair por cima
+    apagava tudo — o oposto do que a ferramenta existe para fazer.
+    """
+    pasta = cenario["work"] / "pedidos-raml"
+    pasta.mkdir()
+    (pasta / "api.raml").write_text("#%RAML 1.0\ntitle: MEU TRABALHO\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["pararepo", "raml", "-w", str(cenario["work"]), "--aplicar"]
+    )
+
+    assert "MEU TRABALHO" in (pasta / "api.raml").read_text(encoding="utf-8"), (
+        f"a edicao local foi sobrescrita. saida:\n{result.output}"
+    )

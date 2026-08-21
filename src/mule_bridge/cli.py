@@ -411,7 +411,19 @@ def _juntar_raml(
             raise ConfigError("O pom.xml nao referencia um RAML do Exchange.")
         grupo, artefato, versao_atual = coords
 
-        if cfg.raml is None or not (cfg.work_root / cfg.raml.work).is_dir():
+        # Sem pasta no disco nao ha nada a preservar, e a criamos. Mas se a config diz
+        # `raml = None` e a pasta existe, ela pode ter trabalho dentro: adotamos a que
+        # esta la em vez de extrair por cima.
+        if cfg.raml is None:
+            candidata = cfg.work_root / f"{artefato}-raml"
+            if candidata.is_dir():
+                cfg.raml = ProjectPair(candidata.name, candidata.name)
+                config.save(cfg)
+                console.print(f"[dim]Adotando a pasta {candidata.name}, que ja existe.[/]")
+            else:
+                _criar_pasta_raml(cfg, grupo, artefato, dry_run or not aplicar)
+                return
+        elif not (cfg.work_root / cfg.raml.work).is_dir():
             _criar_pasta_raml(cfg, grupo, artefato, dry_run or not aplicar)
             return
 
@@ -467,6 +479,13 @@ def _criar_pasta_raml(cfg: BridgeConfig, grupo: str, artefato: str, previa: bool
 
     nome = cfg.raml.work if cfg.raml else f"{artefato}-raml"
     destino = cfg.work_root / nome
+
+    if destino.is_dir():
+        # Rede de seguranca: extrair aqui sobrescreveria o que estiver dentro.
+        raise ConfigError(
+            f"A pasta {nome} ja existe — nao vou extrair por cima dela.\n"
+            "Rode `ponte init --force` para pareá-la, e o comando passa a juntar."
+        )
 
     console.print(f"[bold]A pasta do RAML nao existe — criando de {artefato} {versao}.[/]")
     console.print(f"  destino: {destino}")
