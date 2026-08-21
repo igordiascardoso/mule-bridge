@@ -37,7 +37,7 @@ repositório sem atropelar o que você editou lá.
 ## A solução
 
 ```console
-$ ponte push
+$ ponte parastudio
 
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┓
 ┃ projeto      ┃ copiados ┃ pom reescrito ┃ removidos ┃ ignorados ┃
@@ -58,7 +58,7 @@ sem passo manual.
 | Ignora `target/`, `.mule`, `.settings` | manual | ✅ automático |
 | Aponta o `pom.xml` para o RAML local **só no Studio** | ❌ | ✅ |
 | Impede que esse apontamento vaze para o commit | ❌ | ✅ |
-| Traz de volta os flows que o scaffold gerou | ❌ | ✅ `pull` |
+| Traz de volta os flows que o scaffold gerou | ❌ | ✅ `pararepo api` |
 | Mostra o que vai mudar antes de mudar | ❌ | ✅ `--dry-run` |
 
 ## Pré-requisitos
@@ -200,54 +200,54 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 
 ## Comandos
 
-| Comando | O que faz |
-|---|---|
-| `init` | Pareia o repositório com um projeto do workspace. Roda uma vez. |
-| `status` | Mostra o pareamento e o que um `parastudio` faria agora. Não altera nada. |
-| `parastudio` | Leva o que você editou para o workspace do Studio (**cópia**). |
-| `pararepo` | Traz o que mudou do lado do Studio (**junta**, não sobrescreve). |
+| Comando | Para quê | Mexe em | Direção | O que faz |
+|---|---|---|---|---|
+| `ponte` | Cheguei no projeto e não sei o estado | nada | — | Só olha. Se não estiver pareado, faz o init |
+| `ponte init` | Primeira vez neste projeto (uma vez só) | nada | — | Só grava o `.mule-bridge.toml` |
+| `ponte status` | Ver o pareamento e o que iria pro Studio | nada | — | Só mostra, não escreve |
+| `ponte parastudio` | Editei RAML **e** código, quero testar tudo | RAML + API | repo → Studio | Manda tudo e sobrescreve o que está no Studio |
+| `ponte parastudio raml` | Mexi só no contrato, quero ver o scaffold reagir | só RAML | repo → Studio | Manda o RAML e sobrescreve o do Studio |
+| `ponte parastudio api` | Mexi só em flow/service/java, quero rodar | só API | repo → Studio | Manda a API e sobrescreve a do Studio |
+| `ponte pararepo` | Raro — quero o Studio inteiro por cima | RAML + API | Studio → repo | ⚠️ Apaga suas edições do repo e põe as do Studio |
+| `ponte pararepo raml` | Saiu versão nova no Exchange | só RAML | Exchange → repo | Traz o RAML novo **e mantém o que você editou** |
+| `ponte pararepo api` | O Studio criou flows no scaffold, ou fiz um fix pontual direto no Studio | só API | Studio → repo | Traz o que mudou no Studio **e mantém o que você editou** |
 
-As duas direções aceitam uma parte opcional, quando só um lado mudou:
+> **Sobre o `pararepo` sem parte:** é o único comando que descarta trabalho seu. Use
+> `pararepo raml` e `pararepo api` quando quiser o caminho de volta preservando o que você
+> editou.
 
-```bash
-ponte parastudio raml    # só o RAML
-ponte pararepo api       # só a API
-ponte parastudio         # os dois (padrão)
-```
+**Se você não editou nada no repo**, o `pararepo raml` e o `pararepo api` simplesmente
+trazem o que veio do outro lado — não há nada para preservar, nem conflito possível.
 
-**Flags** de `parastudio` e `pararepo`:
+**Flags:**
 
 | Flag | Efeito |
 |---|---|
 | `--dry-run`, `-n` | Mostra o que seria feito, sem alterar nada. |
-| `--aplicar` | **Só no `pararepo`**: grava o resultado da junção. Sem ela, é só prévia. |
+| `--aplicar` | Em `pararepo raml` e `pararepo api`: grava. Sem ela, é só prévia. |
 | `--delete` | Remove no destino os arquivos que já não existem na origem. |
 | `--work-root`, `-w` | Roda a partir de outro diretório, em vez do atual. |
 
-### As seis combinações
+### O dia a dia
 
-| Comando | Direção | Como |
-|---|---|---|
-| `ponte parastudio` | repo → Studio | cópia (RAML + API) |
-| `ponte parastudio raml` | repo → Studio | cópia, só o RAML |
-| `ponte parastudio api` | repo → Studio | cópia, só a API + reescreve o `pom.xml` no destino |
-| `ponte pararepo` | Studio → repo | cópia (RAML + API) |
-| `ponte pararepo raml` | Exchange → repo | **junta** com suas edições |
-| `ponte pararepo api` | Studio → repo | **junta** com suas edições, base no último commit |
+Você editou o contrato e quer ver o Studio reagir:
 
-O `pararepo` sem parte é cópia direta dos dois; use `raml` ou `api` para ter a junção que
-preserva seu trabalho.
+```bash
+ponte parastudio raml     # manda o RAML
+# o Studio roda o scaffold e cria os flows novos
+ponte pararepo api        # traz os flows, sem perder seu código
+git commit
+```
 
-### O que nunca acontece
+Um colega publicou uma versão nova no Exchange:
 
-- **O `pom.xml` do repositório nunca é sobrescrito.** No `parastudio` a reescrita para o
-  RAML local acontece só no destino; no `pararepo` o arquivo é ignorado. Seu repositório
-  segue sempre apontando para o Exchange com a versão travada.
-- **Nada é apagado sem `--delete`**, e essa flag nunca é passada por conta própria.
-- **Nada é escrito enquanto houver conflito** — nem os arquivos que deram certo.
+```bash
+ponte pararepo raml       # traz a versão nova, mantendo suas edições
+ponte parastudio          # manda tudo pro Studio testar
+git commit
+```
 
-> **Nota:** sem `--delete`, o sync só copia — nada é apagado em nenhum dos lados.
-> No `parastudio` o destino é o workspace; no `pararepo`, o seu repositório.
+## Como a junção funciona
 
 ### `pararepo raml` — a versão nova sem perder o que você escreveu
 
@@ -298,6 +298,15 @@ No terceiro caso nenhum arquivo é tocado — nem os que deram certo. Sua pasta 
 alterada quando o resultado inteiro está resolvido, então uma edição sua nunca é
 sobrescrita em silêncio.
 
+### O que nunca acontece
+
+- **O `pom.xml` do repositório nunca é sobrescrito.** No `parastudio` a reescrita para o
+  RAML local acontece só no destino; no `pararepo` o arquivo é ignorado. Seu repositório
+  segue sempre apontando para o Exchange com a versão travada.
+- **Nada é apagado sem `--delete`**, e essa flag nunca é passada por conta própria — nem
+  pela skill.
+- **Nada é escrito enquanto houver conflito** — nem os arquivos que deram certo.
+
 ## Como funciona
 
 ### O `pom.xml` é o único caso especial
@@ -306,7 +315,7 @@ O projeto referencia o RAML como dependência do Exchange, com a versão travada
 suas edições locais do RAML no Studio, essa referência precisa apontar para o arquivo local
 — mas essa alteração **não pode ir para o commit**.
 
-O `push` resolve isso reescrevendo o arquivo apenas do lado do Studio:
+O `parastudio` resolve isso reescrevendo o arquivo apenas do lado do Studio:
 
 ```
 seu repositório  ──►  workspace do Studio
@@ -317,7 +326,7 @@ pom.xml                pom.xml
                             como comentário
 ```
 
-O `pull` reconhece o arquivo reescrito e o ignora, para que o apontamento local nunca volte
+O `pararepo` reconhece o arquivo reescrito e o ignora, para que o apontamento local nunca volte
 para o repositório.
 
 ### O que nunca é sincronizado
@@ -349,7 +358,7 @@ do `pom.xml`, `config` lembra o pareamento.
 ## Roadmap
 
 - [x] Descoberta interativa de projetos nos dois lados
-- [x] Sync bidirecional (`push` / `pull`) com `--dry-run`
+- [x] Sync bidirecional (`parastudio` / `pararepo`) com `--dry-run`
 - [x] Reescrita do `pom.xml` isolada no workspace do Studio
 - [x] **Reconciliação tipo `git rebase`** para o RAML (`pararepo raml`)
 - [x] Mesma reconciliação para os arquivos da API (`pararepo api`), usando o último commit
