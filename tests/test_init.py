@@ -135,3 +135,23 @@ def test_raml_sem_par_no_studio_ainda_e_configurado(workspace):
     cfg = config.load(workspace["work"])
     assert cfg.raml is not None, "a pasta local do RAML tem de ser guardada"
     assert cfg.raml.work == "pedidos-raml"
+
+
+def test_roda_como_modulo_python(tmp_path):
+    """`python -m mule_bridge` e a saida de quem nao consegue mexer no PATH.
+
+    O README documenta essa forma; sem `__main__.py` ela falha com "cannot be directly
+    executed", e a pessoa fica sem alternativa nenhuma.
+    """
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "mule_bridge", "--version"],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    assert "mule-bridge" in proc.stdout

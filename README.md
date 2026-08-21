@@ -72,31 +72,64 @@ roda continua sendo o Studio.
 
 ## Instalação
 
-Com [pipx](https://pipx.pypa.io) (recomendado — isola a ferramenta do resto do sistema):
+Três comandos, uma vez só:
 
 ```bash
+python -m pip install --user pipx      # 1. instala o pipx, se ainda não tiver
+python -m pipx ensurepath              # 2. deixa os comandos visíveis no terminal
 pipx install git+https://github.com/igordiascardoso/mule-bridge
 ```
 
-O pacote chama-se `mule-bridge`; o comando instalado é **`ponte`**.
-
-<details>
-<summary>Alternativas e solução de problemas</summary>
-
-Sem pipx, o pip funciona igual:
-
-```bash
-pip install git+https://github.com/igordiascardoso/mule-bridge
-```
-
-Confirme que ficou disponível no terminal:
+**Feche o terminal e abra outro** — o passo 2 mexe no `PATH`, e a janela aberta não vê a
+mudança. Então confirme:
 
 ```bash
 ponte --version
 ```
 
-Se o comando não for encontrado, o diretório de scripts do Python não está no `PATH`.
-`pipx ensurepath` resolve — depois abra um terminal novo.
+O pacote chama-se `mule-bridge`; o comando instalado é **`ponte`**.
+
+O `pipx` é recomendado porque instala a ferramenta isolada, sem misturar dependências com
+os seus outros projetos Python.
+
+<details>
+<summary><b>Se <code>ponte</code> não for encontrado</b> — e outras formas de instalar</summary>
+
+### `ponte: command not found` / `não é reconhecido como comando`
+
+O pacote instalou, mas o terminal não sabe onde procurar o executável. Na ordem:
+
+1. **Abriu um terminal novo depois do `ensurepath`?** É a causa mais comum.
+2. Rode `python -m pipx ensurepath` de novo e leia a saída — ela diz qual pasta foi
+   adicionada, ou avisa que já estava lá.
+3. Ainda assim, chame pelo módulo para confirmar que o pacote está instalado:
+   `python -m mule_bridge --version`. Se isso funcionar, o problema é só o `PATH`.
+
+Para acertar o `PATH` à mão no Windows: *Iniciar → "variáveis de ambiente" → Variáveis de
+Ambiente → em **Path** (do usuário) → Novo* → e cole o caminho que o `ensurepath` mostrou
+(normalmente `C:\Users\seu-usuario\.local\bin`). Depois abra um terminal novo.
+
+### Sem pipx, direto com pip
+
+```bash
+python -m pip install --user git+https://github.com/igordiascardoso/mule-bridge
+```
+
+Funciona igual, mas a pasta de scripts é outra — algo como
+`C:\Users\seu-usuario\AppData\Roaming\Python\Python312\Scripts`. Se o comando não for
+encontrado, é essa pasta que precisa entrar no `Path`. Para descobrir qual é a sua:
+
+```bash
+python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
+```
+
+### Sem mexer em `PATH` nenhum
+
+Dá para chamar pelo módulo, sem depender de executável no caminho:
+
+```bash
+python -m mule_bridge parastudio
+```
 
 </details>
 
