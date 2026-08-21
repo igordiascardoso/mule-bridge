@@ -89,11 +89,15 @@ ponte parastudio api      # manda para o Studio testar
 Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no disco
 e redeploya sozinho.
 
-## A junção, em uma tela
+## A junção
 
 Juntar compara **três** versões do arquivo, não duas: a base (como estava antes de qualquer
 um mexer), a sua, e a que chegou. Com a base dá para saber quem mudou o quê — e por isso as
-duas mudanças podem ficar, em vez de uma vencer.
+duas mudanças podem ficar, em vez de uma vencer. Em `pararepo raml` a base é a versão
+anterior do RAML, do cache local do Maven (`~/.m2`); em `pararepo api`, é o último commit do
+seu repositório.
+
+### O que o comando mostra
 
 ```console
 $ ponte pararepo raml
@@ -103,37 +107,53 @@ RAML 1.1.54 -> 1.1.55
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
 ┃ o que                     ┃ arquivos ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
-│ juntados (seu + deles)    │        2 │  os dois mexeram, em lugares diferentes
-│ novos, vindos do Exchange │        7 │  só existe do outro lado — entra
-│ só seus, preservados      │        1 │  só você editou ou criou — fica intocado
+│ juntados (seu + deles)    │        2 │
+│ novos, vindos do Exchange │        7 │
+│ só seus, preservados      │        1 │
 │ sem mudança               │       15 │
-│ em conflito               │        0 │  mesma linha — ele pergunta qual fica
+│ em conflito               │        0 │
 └───────────────────────────┴──────────┘
 
 10 arquivo(s) atualizado(s) em pedidos-raml.
 ```
 
-Zero em conflito significa que resolveu tudo sozinho. Diferente de zero, ele mostra os dois
-lados e pergunta — `1` a sua, `2` a que veio, `3` você digita. **Nunca fica marcador
-`<<<<<<<` no arquivo**, e não há segundo comando: sair do conflito é responder.
+| A linha | Quer dizer |
+|---|---|
+| juntados | os dois mexeram, em lugares diferentes — ficaram as duas mudanças |
+| novos, vindos do Exchange | só existe do outro lado — entra |
+| **só seus, preservados** | **só você editou, ou só você criou — fica intocado** |
+| sem mudança | ninguém mexeu |
+| **em conflito** | **os dois mexeram na mesma linha — precisa de decisão** |
+
+Zero em conflito quer dizer que a junção resolveu tudo sozinha.
+
+### Quando há conflito
+
+Ele mostra os dois lados e pergunta: `1` a sua, `2` a que veio, `3` você digita o texto
+final. Responde e ele grava.
+
+**Nunca fica marcador `<<<<<<<` no arquivo**, e não existe segundo comando para rodar —
+sair do conflito é responder a pergunta.
 
 Num agente de IA, onde não há terminal para digitar, ele imprime os dois lados e **não grava
-nada** — o agente combina e roda de novo.
+nada**. O agente combina as versões e roda de novo.
 
-**No `git status` sobra só o seu trabalho.** O que veio de fora vai para um commit separado
-(`chore(raml): especificacao pedidos 1.1.55`), então o `M` e o `??` que ficam são os arquivos
-que **você** editou e criou. `git diff` mostra a sua mudança, não a diferença entre duas
-versões da especificação. Depois, aponte o `pom.xml` para a versão nova.
+### Depois, no git
 
-`pararepo api` funciona igual, usando o último commit do repositório como base.
+O que veio de fora vai para um **commit separado** (`chore(raml): especificacao pedidos
+1.1.55`). Então o `M` e o `??` que sobram no `git status` são os arquivos que **você** editou
+e criou — o `git diff` mostra a sua mudança, não a diferença entre duas versões da
+especificação.
 
-## O que a ferramenta nunca faz
+Falta um passo manual: apontar o `pom.xml` para a versão nova.
 
-- **Sobrescrever o `pom.xml` do repositório.** Para o Studio ler seu RAML local, a referência
-  precisa mudar — e essa reescrita acontece **só no workspace**. Aqui ele segue apontando
-  para o Exchange com a versão travada, que é o que vai para o remoto.
-- **Apagar arquivo.** Um que só existe de um lado continua lá. A junção acrescenta e combina;
-  não sincroniza deleção.
+## O que a ferramenta não faz sozinha
+
+- **Mexer no `pom.xml` do repositório.** Para o Studio ler seu RAML local a referência precisa
+  mudar — e essa reescrita acontece **só no workspace**. Aqui ele segue apontando para o
+  Exchange com a versão travada, que é o que vai para o remoto.
+- **Remover arquivo.** Um que só existe de um lado continua lá: sincronizar acrescenta e
+  combina, nunca apaga. Se você apagou algo aqui, apague no outro lado também.
 - **Escrever com conflito pendente** — nem os arquivos que deram certo.
 - **Sincronizar `.git`, `target`, `.mule`, `.settings`** e outros artefatos de build.
 - **Rodar em segundo plano.** Copiar arquivos enquanto o scaffold do Studio reescreve os
