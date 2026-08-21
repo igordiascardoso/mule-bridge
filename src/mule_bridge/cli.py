@@ -479,7 +479,7 @@ def parastudio(
     
     ponte parastudio raml     aponta o Studio para a sua pasta de RAML
     ponte parastudio api      copia a API do repositorio para o workspace
-    ponte parastudio force    sobrescreve o workspace inteiro
+    ponte parastudio force    copia RAML + API por cima do workspace
     """
     p = _parse_palavras(palavras, comando="parastudio")
 
@@ -517,7 +517,7 @@ def pararepo(
     
     ponte pararepo raml     junta a versao nova do RAML com as suas edicoes
     ponte pararepo api      junta o que o Studio mudou com o que voce mudou
-    ponte pararepo force    sobrescreve o repositorio, sem juntar
+    ponte pararepo force    copia RAML + API por cima do repo, sem juntar
 
     Com `raml` ou `api` nada do seu trabalho e perdido: o que os dois lados mexeram em
     lugares diferentes o merge junta sozinho, e o que colidiu na mesma linha ele pergunta.

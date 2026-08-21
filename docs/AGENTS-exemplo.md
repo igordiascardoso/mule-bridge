@@ -21,12 +21,12 @@ numa pasta separada. As duas não se sincronizam sozinhas. A CLI `ponte`
 ```
 ponte parastudio raml      faz o Studio ler o RAML que eu edito
 ponte parastudio api       copia a API daqui para o workspace
-ponte parastudio force     copia tudo por cima do workspace
+ponte parastudio force     copia RAML + API por cima do workspace
 ponte parastudio           RECUSA: falta a palavra
 
 ponte pararepo raml        junta a versão nova do RAML com as minhas edições, e grava
 ponte pararepo api         junta o que o Studio mudou com o que eu mudei, e grava
-ponte pararepo force       ⚠️  copia por cima daqui, SEM juntar
+ponte pararepo force       ⚠️  copia RAML + API por cima daqui, SEM juntar
 ponte pararepo             RECUSA: falta a palavra
 ```
 

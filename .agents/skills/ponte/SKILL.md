@@ -15,12 +15,12 @@ comando certo, resolve conflito quando aparece, e reporta o resultado.
 ponte parastudio raml      aponta o pom.xml do Studio para a pasta local do RAML
                            (ou copia, se houver pasta de RAML no workspace)
 ponte parastudio api       copia a API do repositorio para o workspace
-ponte parastudio force     copia tudo por cima do workspace, sem juntar
+ponte parastudio force     copia RAML + API por cima do workspace, sem juntar
 ponte parastudio           RECUSA: falta a palavra
 
 ponte pararepo raml        junta a versao nova do RAML com as edicoes locais, e grava
 ponte pararepo api         junta o que o Studio mudou com o que o usuario mudou, e grava
-ponte pararepo force       copia por cima do repositorio, SEM juntar
+ponte pararepo force       copia RAML + API por cima do repositorio, SEM juntar
 ponte pararepo             RECUSA: falta a palavra
 ```
 
