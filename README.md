@@ -79,23 +79,23 @@ ponte parastudio api      # manda para o Studio testar
 Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no disco
 e redeploya sozinho.
 
-## O merge
+## Trazer sem perder o que você fez
 
-`pararepo raml` e `pararepo api` não copiam por cima — eles fazem merge, como um `git merge`.
+Você editou o RAML e sai uma versão nova no Exchange. Ou você mexeu num flow e o Studio
+gerou outros. Copiar por cima apagaria o seu trabalho — então `pararepo raml` e
+`pararepo api` não copiam: eles **juntam as duas versões**.
 
-Cada arquivo cai num destes casos:
+Arquivo por arquivo:
 
-- os dois mexeram em **pontos diferentes** → ficam as duas mudanças
-- **só existe** do outro lado → entra
-- **só você** editou ou criou → ele não chega perto
-- os dois mexeram na **mesma linha** → ele pergunta qual fica
+| A situação | O que ele faz |
+|---|---|
+| Você mexeu, o Exchange não | deixa o seu, sem tocar |
+| O Exchange mexeu, você não | traz o novo |
+| Os dois mexeram, **em lugares diferentes** do arquivo | fica com as duas mudanças |
+| Os dois mexeram **na mesma linha** | **pergunta a você** qual fica |
+| Arquivo novo, de qualquer um dos lados | entra |
 
-No fim ele imprime quantos arquivos caíram em cada caso, e quantos foram gravados.
-
-Se a pasta do RAML ainda não existe, não há merge a fazer: `pararepo raml` extrai a versão
-que o Studio usa para uma pasta nova na raiz, e para.
-
-### Quando ele pergunta
+**Só a mesma linha precisa de você.** Aí ele mostra os dois lados e espera:
 
 ```console
 api.raml — as duas versoes mexeram nas mesmas linhas
@@ -109,20 +109,23 @@ api.raml — as duas versoes mexeram nas mesmas linhas
 Fica qual? 1 = a sua, 2 = a que veio, 3 = eu escrevo [1]:
 ```
 
-Você responde e ele grava. **Não fica marcador `<<<<<<<` no arquivo** e não há segundo
-comando — responder é o que resolve.
+Você responde, ele grava, acabou. Não sobra marcador `<<<<<<<` no arquivo e não há segundo
+comando para rodar.
 
-Num agente de IA, onde não há terminal para digitar, ele mostra as duas versões e **não grava
-nada**. O agente combina e roda de novo.
+Num agente de IA não existe onde digitar a resposta — então ele mostra as duas versões e
+**não grava nada**. O agente junta e roda de novo.
 
-### Depois
+### Dois detalhes do `pararepo raml`
 
-No `pararepo raml`, o que veio do Exchange e você não tinha tocado é **commitado sozinho**
-(`chore(raml): especificacao pedidos 1.1.55`) — senão dezenas de arquivos de fora se
-misturariam com as suas duas linhas no `git status`. O resto fica sem commit, para você
-revisar. Falta subir a versão no `pom.xml`, que o comando não mexe.
+**A pasta não existe?** Ele cria: extrai a versão que o Studio usa para uma pasta nova na
+raiz do repositório. É o caso de um projeto recém-clonado.
 
-O `pararepo api` não commita nada: é pouco arquivo, e tudo fica no working tree.
+**Ele commita parte sozinho.** Os arquivos que vieram do Exchange e você não tinha tocado vão
+para um commit à parte (`chore(raml): especificacao pedidos 1.1.55`). Sem isso, o seu
+`git status` teria dezenas de arquivos de fora misturados com as suas duas linhas. O que
+envolve o seu trabalho fica sem commit, para você revisar.
+
+Depois, suba a versão no `pom.xml` — isso o comando não faz.
 
 ## Duas coisas que ele nunca faz
 
