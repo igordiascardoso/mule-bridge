@@ -17,9 +17,9 @@ ponte parastudio api       copia sua API para o workspace
 ponte parastudio force     copia RAML + API por cima do workspace
 ponte parastudio           recusa: falta a palavra
 
-ponte pararepo raml        junta a versão nova do RAML com a sua, e grava
-ponte pararepo api         junta o que o Studio mudou com o que você mudou, e grava
-ponte pararepo force       ⚠️  copia RAML + API por cima do seu repo, sem juntar
+ponte pararepo raml        faz merge da versão nova do RAML com a sua, e grava
+ponte pararepo api         faz merge do que o Studio mudou com o que você mudou
+ponte pararepo force       ⚠️  copia RAML + API por cima do seu repo, sem merge
 ponte pararepo             recusa: falta a palavra
 ```
 
@@ -28,15 +28,15 @@ ponte pararepo             recusa: falta a palavra
 Três palavras: `raml`, `api`, `force`. Uma é obrigatória — sem ela o comando recusa em vez
 de adivinhar.
 
-**`raml` e `api` juntam.** Arquivo que só você editou fica como está. Arquivo novo que você
-criou continua lá. Arquivo que os dois mexeram é juntado linha por linha — e se as mudanças
-se cruzarem na mesma linha, ele pergunta antes de gravar.
+**`raml` e `api` fazem merge**, como um `git merge`. Arquivo que só você editou fica como
+está. Arquivo novo que você criou continua lá. Arquivo que os dois mexeram é combinado
+linha por linha — e se as mudanças se cruzarem na mesma linha, ele pergunta antes de gravar.
 
-**`force` copia por cima, sem juntar.** É a única palavra que pode fazer trabalho
+**`force` copia por cima, sem merge.** É a única palavra que pode fazer trabalho
 desaparecer, e em `pararepo` o trabalho é o seu. Raramente é o que você quer.
 
-Não se combinam: `pararepo raml force` é recusado — juntar e sobrescrever são decisões
-opostas.
+Não se combinam: `pararepo raml force` é recusado — fazer merge e sobrescrever são
+decisões opostas.
 
 Mais dois:
 
@@ -82,20 +82,21 @@ ponte pararepo api        # traz os flows novos, sem perder seu código
 Saiu versão nova do RAML no Exchange:
 
 ```bash
-ponte pararepo raml       # junta com as suas edições
+ponte pararepo raml       # merge com as suas edições
 ponte parastudio api      # manda para o Studio testar
 ```
 
 Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no disco
 e redeploya sozinho.
 
-## A junção
+## O merge
 
-Juntar compara **três** versões do arquivo, não duas: a base (como estava antes de qualquer
-um mexer), a sua, e a que chegou. Com a base dá para saber quem mudou o quê — e por isso as
-duas mudanças podem ficar, em vez de uma vencer. Em `pararepo raml` a base é a versão
-anterior do RAML, do cache local do Maven (`~/.m2`); em `pararepo api`, é o último commit do
-seu repositório.
+É um merge de três pontas, o mesmo que o git faz: compara **três** versões do arquivo, não
+duas — a base (como estava antes de qualquer um mexer), a sua, e a que chegou. Com a base dá
+para saber quem mudou o quê, e por isso as duas mudanças podem ficar em vez de uma vencer.
+
+A base vem do cache local do Maven (`~/.m2`) no `pararepo raml`, e do último commit do seu
+repositório no `pararepo api`.
 
 ### O que o comando mostra
 
@@ -107,9 +108,9 @@ RAML 1.1.54 -> 1.1.55
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
 ┃ o que                     ┃ arquivos ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
-│ juntados (seu + deles)    │        2 │
+│ merge (seu + o que veio)  │        2 │
 │ novos, vindos do Exchange │        7 │
-│ só seus, preservados      │        1 │
+│ só seus, intocados        │        1 │
 │ sem mudança               │       15 │
 │ em conflito               │        0 │
 └───────────────────────────┴──────────┘
@@ -119,13 +120,13 @@ RAML 1.1.54 -> 1.1.55
 
 | A linha | Quer dizer |
 |---|---|
-| juntados | os dois mexeram, em lugares diferentes — ficaram as duas mudanças |
+| merge | os dois mexeram, em lugares diferentes — ficaram as duas mudanças |
 | novos, vindos do Exchange | só existe do outro lado — entra |
-| **só seus, preservados** | **só você editou, ou só você criou — fica intocado** |
+| **só seus, intocados** | **só você editou, ou só você criou — não é tocado** |
 | sem mudança | ninguém mexeu |
 | **em conflito** | **os dois mexeram na mesma linha — precisa de decisão** |
 
-Zero em conflito quer dizer que a junção resolveu tudo sozinha.
+Zero em conflito quer dizer que o merge resolveu tudo sozinho.
 
 ### Quando há conflito
 
@@ -152,7 +153,7 @@ Falta um passo manual: apontar o `pom.xml` para a versão nova.
 - **Mexer no `pom.xml` do repositório.** Para o Studio ler seu RAML local a referência precisa
   mudar — e essa reescrita acontece **só no workspace**. Aqui ele segue apontando para o
   Exchange com a versão travada, que é o que vai para o remoto.
-- **Remover arquivo.** Um que só existe de um lado continua lá: sincronizar acrescenta e
+- **Remover arquivo.** Um que só existe de um lado continua lá: o merge acrescenta e
   combina, nunca apaga. Se você apagou algo aqui, apague no outro lado também.
 - **Escrever com conflito pendente** — nem os arquivos que deram certo.
 - **Sincronizar `.git`, `target`, `.mule`, `.settings`** e outros artefatos de build.

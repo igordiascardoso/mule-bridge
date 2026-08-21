@@ -21,12 +21,12 @@ numa pasta separada. As duas não se sincronizam sozinhas. A CLI `ponte`
 ```
 ponte parastudio raml      faz o Studio ler o RAML que eu edito
 ponte parastudio api       copia a API daqui para o workspace
-ponte parastudio force     copia RAML + API por cima do workspace
+ponte parastudio force     copia RAML + API por cima do workspace, sem merge
 ponte parastudio           RECUSA: falta a palavra
 
-ponte pararepo raml        junta a versão nova do RAML com as minhas edições, e grava
-ponte pararepo api         junta o que o Studio mudou com o que eu mudei, e grava
-ponte pararepo force       ⚠️  copia RAML + API por cima daqui, SEM juntar
+ponte pararepo raml        faz merge da versão nova do RAML com as minhas edições
+ponte pararepo api         faz merge do que o Studio mudou com o que eu mudei
+ponte pararepo force       ⚠️  copia RAML + API por cima daqui, SEM merge
 ponte pararepo             RECUSA: falta a palavra
 ```
 
@@ -50,10 +50,10 @@ redeploya sozinho. Não sugira reimportar o projeto nem reiniciar o Studio.
 - **Rode a partir da raiz do repositório**, onde fica o `.mule-bridge.toml`.
 - **O vocabulário são três palavras:** `raml`, `api`, `force` — e uma delas é obrigatória.
   Não há flags a descobrir; uma palavra fora dessa lista é recusada de propósito.
-- **`force` sobrescreve sem juntar, e é do usuário.** É a única palavra que pode fazer
+- **`force` sobrescreve sem merge, e é do usuário.** É a única palavra que pode fazer
   trabalho ser perdido. **Nunca a acrescente por conta própria** para "completar a tarefa" —
   só quando o usuário a tiver digitado. Para trazer algo do Studio, o comando certo é quase
-  sempre `pararepo raml` ou `pararepo api`, que juntam e não perdem nada.
+  sempre `pararepo raml` ou `pararepo api`, que fazem merge e não perdem nada.
 - **`force` não se combina com `raml`/`api`** — a CLI recusa `pararepo raml force`.
 - **O `pom.xml` daqui nunca deve ser alterado para apontar ao RAML local.** Essa reescrita
   acontece só no workspace do Studio; aqui ele segue apontando para o Exchange com a versão
@@ -67,7 +67,7 @@ nada** — resolver é seu trabalho:
 1. Leia as duas versões que o comando mostrou.
 2. Se os dois só **acrescentaram** coisas diferentes no mesmo lugar, não há
    incompatibilidade: proponha manter as duas, uma depois da outra.
-3. Se as duas intenções cabem juntas, proponha um texto que preserve as duas e **pergunte ao
+3. Se as duas intenções cabem no mesmo texto, proponha um que preserve as duas e **pergunte ao
    usuário** antes de aplicar.
 4. Se são incompatíveis (`type: string` contra `type: number`), mostre os dois lados e
    pergunte qual vale — não invente uma combinação.

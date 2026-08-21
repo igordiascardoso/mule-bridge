@@ -479,7 +479,7 @@ def parastudio(
     
     ponte parastudio raml     aponta o Studio para a sua pasta de RAML
     ponte parastudio api      copia a API do repositorio para o workspace
-    ponte parastudio force    copia RAML + API por cima do workspace
+    ponte parastudio force    copia RAML + API por cima do workspace, sem merge
     """
     p = _parse_palavras(palavras, comando="parastudio")
 
@@ -515,12 +515,13 @@ def pararepo(
     """Traz para o seu repositorio o que mudou no workspace do Studio.
 
     
-    ponte pararepo raml     junta a versao nova do RAML com as suas edicoes
-    ponte pararepo api      junta o que o Studio mudou com o que voce mudou
-    ponte pararepo force    copia RAML + API por cima do repo, sem juntar
+    ponte pararepo raml     merge da versao nova do RAML com as suas edicoes
+    ponte pararepo api      merge do que o Studio mudou com o que voce mudou
+    ponte pararepo force    copia RAML + API por cima do repo, sem merge
 
     Com `raml` ou `api` nada do seu trabalho e perdido: o que os dois lados mexeram em
-    lugares diferentes o merge junta sozinho, e o que colidiu na mesma linha ele pergunta.
+    lugares diferentes o merge resolve sozinho, e o que colidiu na mesma linha ele
+    pergunta antes de gravar.
     """
     p = _parse_palavras(palavras, comando="pararepo")
 
@@ -590,7 +591,7 @@ def _juntar_api(work_root: Path | None, dry_run: bool = False) -> None:
         if not reconcile.em_repo_git(local):
             console.print(
                 "[yellow]A pasta da API nao esta num repositorio git com commits —[/] "
-                "sem base para juntar, seguindo com copia direta."
+                "sem base para o merge, seguindo com copia direta."
             )
             _run(Direction.PULL, work_root, False, dry_run, "api")
             return
@@ -724,7 +725,7 @@ def _criar_pasta_raml(
         # Rede de seguranca: extrair aqui sobrescreveria o que estiver dentro.
         raise ConfigError(
             f"A pasta {nome} ja existe — nao vou extrair por cima dela.\n"
-            "Rode `ponte init --force` para pareá-la, e o comando passa a juntar."
+            "Rode `ponte init --force` para pareá-la, e o comando passa a fazer merge."
         )
 
     console.print(f"[bold]A pasta do RAML nao existe — criando de {artefato} {versao}.[/]")
@@ -797,15 +798,15 @@ def _report_raml(r: reconcile.Reconciliacao, origem: str = "Exchange") -> None:
     tabela = Table()
     tabela.add_column("o que")
     tabela.add_column("arquivos", justify="right")
-    tabela.add_row("juntados (seu + deles)", str(len(r.juntados)))
+    tabela.add_row("merge (seu + o que veio)", str(len(r.juntados)))
     tabela.add_row(f"novos, vindos do {origem}", str(len(r.so_deles)))
-    tabela.add_row("so seus, preservados", str(len(r.so_meus)))
+    tabela.add_row("so seus, intocados", str(len(r.so_meus)))
     tabela.add_row("sem mudanca", str(len(r.inalterados)))
     tabela.add_row("[red]em conflito[/]", f"[red]{len(r.conflitos)}[/]")
     console.print(tabela)
 
     for rel in r.juntados:
-        console.print(f"  [green]juntado[/]  {rel}")
+        console.print(f"  [green]merge[/]    {rel}")
     for rel in r.so_deles:
         console.print(f"  [cyan]novo[/]     {rel}")
 

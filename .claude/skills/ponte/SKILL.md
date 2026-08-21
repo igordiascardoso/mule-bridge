@@ -6,7 +6,7 @@ description: "parastudio | pararepo | status | init — sincroniza um projeto Mu
 # ponte
 
 Camada fina sobre a CLI `mule-bridge`. **Nao reimplemente nada aqui** — toda a logica
-(descoberta, sync, juncao, reescrita do `pom.xml`) vive na CLI. Esta skill so escolhe o
+(descoberta, sync, merge, reescrita do `pom.xml`) vive na CLI. Esta skill so escolhe o
 comando certo, resolve conflito quando aparece, e reporta o resultado.
 
 ## Os oito comandos
@@ -15,12 +15,12 @@ comando certo, resolve conflito quando aparece, e reporta o resultado.
 ponte parastudio raml      aponta o pom.xml do Studio para a pasta local do RAML
                            (ou copia, se houver pasta de RAML no workspace)
 ponte parastudio api       copia a API do repositorio para o workspace
-ponte parastudio force     copia RAML + API por cima do workspace, sem juntar
+ponte parastudio force     copia RAML + API por cima do workspace, sem merge
 ponte parastudio           RECUSA: falta a palavra
 
-ponte pararepo raml        junta a versao nova do RAML com as edicoes locais, e grava
-ponte pararepo api         junta o que o Studio mudou com o que o usuario mudou, e grava
-ponte pararepo force       copia RAML + API por cima do repositorio, SEM juntar
+ponte pararepo raml        faz merge da versao nova do RAML com as edicoes locais
+ponte pararepo api         faz merge do que o Studio mudou com o que o usuario mudou
+ponte pararepo force       copia RAML + API por cima do repositorio, SEM merge
 ponte pararepo             RECUSA: falta a palavra
 ```
 
@@ -37,12 +37,12 @@ de tentar uma flag.
 
 ## A palavra `force` e do usuario, nao sua
 
-`force` **sobrescreve sem juntar** — e a unica palavra que pode fazer o trabalho do usuario
+`force` **sobrescreve sem merge** — e a unica palavra que pode fazer o trabalho do usuario
 ser perdido. **Nunca acrescente `force` por conta propria**, em nenhum dos dois comandos. Use
 apenas quando o usuario tiver digitado a palavra ele mesmo.
 
 Quando ele pedir para trazer algo do Studio, o comando certo e quase sempre `pararepo raml`
-ou `pararepo api`, que **juntam** e nao perdem nada. `pararepo force` e para o caso raro de
+ou `pararepo api`, que **fazem merge** e nao perdem nada. `pararepo force` e para o caso raro de
 querer descartar o proprio trabalho de proposito — se parecer que e isso que ele quer,
 confirme antes.
 
@@ -98,10 +98,10 @@ redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
 2. Se o usuario nao rodou `init` ainda, o comando falha pedindo isso. Nao invente a config
    nem escreva o `.mule-bridge.toml` na mao.
 
-## pararepo raml e api — juncao, nao copia
+## pararepo raml e api — merge, nao copia
 
 Os dois trazem o que mudou do outro lado **preservando as edicoes locais**: o que os dois
-lados mexeram em pontos diferentes e juntado sozinho. Eles gravam na hora — a palavra ja e
+lados mexeram em pontos diferentes o merge resolve sozinho. Eles gravam na hora — a palavra ja e
 a autorizacao, nao ha previa nem segundo comando.
 
 ```bash
@@ -125,7 +125,7 @@ nada**. E aqui que voce entra. Para cada arquivo em conflito:
    arquivo, ou dentro do mesmo bloco — nao ha incompatibilidade nenhuma: o conflito existe
    so porque nao ha como saber a ordem. Proponha manter **os dois**, um depois do outro (o
    que veio primeiro, o do usuario em seguida), e confirme.
-3. **Se as duas intencoes cabem juntas** — ex: um escreveu "Placa no padrao Mercosul" e o
+3. **Se as duas intencoes cabem no mesmo texto** — ex: um escreveu "Placa no padrao Mercosul" e o
    outro "Placa (obrigatorio)" — proponha um texto que preserve as duas, e **pergunte ao
    usuario** se pode aplicar. Nao aplique calado.
 4. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
@@ -176,7 +176,7 @@ usuario que o comando vai falhar — ele cria a pasta.
 | Mensagem | O que fazer |
 |---|---|
 | `Falta a palavra` | O comando foi rodado nu. Escolha `raml`, `api` ou `force` conforme o pedido. |
-| `nao se combina` | Vieram `force` e `raml`/`api` juntos. Decida: juntar (`raml`/`api`) ou sobrescrever (`force`). |
+| `nao se combina` | Vieram `force` e `raml`/`api` juntos. Decida: merge (`raml`/`api`) ou sobrescrever (`force`). |
 | `Nenhuma config encontrada` | O usuario precisa rodar o `init` na raiz do repo. |
 | `Origem nao existe` | O caminho no `.mule-bridge.toml` mudou de lugar; rode `init` de novo com `--force`. |
 | `Este projeto nao tem pasta de RAML configurada` | Pediram `raml` mas o `init` foi feito sem RAML. Refaca com `--force`. |

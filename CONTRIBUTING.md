@@ -10,7 +10,7 @@ ruff check .
 ```
 
 A lógica vive inteira em [`src/mule_bridge/`](src/mule_bridge/): `discovery` acha os
-projetos, `sync` move arquivos, `reconcile` faz a junção, `pomrewrite` cuida do `pom.xml`,
+projetos, `sync` move arquivos, `reconcile` faz o merge, `pomrewrite` cuida do `pom.xml`,
 `config` lembra o pareamento. A CLI é a única camada com lógica de negócio — a skill e o
 `AGENTS.md` só a acionam.
 
