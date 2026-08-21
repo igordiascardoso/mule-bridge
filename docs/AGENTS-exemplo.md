@@ -23,8 +23,8 @@ numa pasta separada. As duas não se sincronizam sozinhas. A CLI `ponte`
 | Editei o RAML ou o código e quero testar no Studio | `ponte parastudio` |
 | Quero que o Studio leia o RAML que eu edito | `ponte parastudio raml` |
 | Mexi só em flow/service/java | `ponte parastudio api` |
-| Saiu versão nova do RAML no Exchange | `ponte pararepo raml --aplicar` |
-| O Studio gerou flows no scaffold, ou fiz um fix direto nele | `ponte pararepo api --aplicar` |
+| Saiu versão nova do RAML no Exchange | `ponte pararepo raml force` |
+| O Studio gerou flows no scaffold, ou fiz um fix direto nele | `ponte pararepo api force` |
 | Quero ver o pareamento e o que está diferente | `ponte status` |
 
 Depois de um `parastudio` **não há passo extra**: o Studio detecta a mudança no disco e
@@ -33,7 +33,9 @@ redeploya sozinho. Não sugira reimportar o projeto nem reiniciar o Studio.
 ### Regras
 
 - **Rode a partir da raiz do repositório**, onde fica o `.mule-bridge.toml`.
-- **Prefira `--dry-run` antes de um `pararepo`**, cujo destino são os arquivos versionados.
+- **Nenhum `pararepo` grava sem a palavra `force`** — sem ela é prévia. Rode primeiro sem,
+  mostre o que aconteceria, e **só acrescente `force` depois de o usuário confirmar**. Nunca
+  acrescente essa palavra por conta própria para "completar a tarefa".
 - **Nunca passe `--delete`** sem o usuário pedir explicitamente: ele apaga no destino, e no
   `pararepo` o destino é este repositório.
 - **O `pom.xml` daqui nunca deve ser alterado para apontar ao RAML local.** Essa reescrita

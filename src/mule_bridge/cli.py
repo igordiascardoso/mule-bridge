@@ -271,7 +271,7 @@ def init(
     if cfg.raml is None:
         console.print(
             "\n[yellow]Sem pasta de RAML neste repositorio.[/]\n"
-            "Rode [bold]ponte pararepo raml --aplicar[/] para cria-la com a "
+            "Rode [bold]ponte pararepo raml force[/] para cria-la com a "
             "especificacao que o Studio usa."
         )
 
