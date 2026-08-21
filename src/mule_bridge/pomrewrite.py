@@ -32,6 +32,27 @@ def find_raml_dependency(tree: etree._ElementTree) -> etree._Element | None:
     return None
 
 
+def read_raml_coords(pom: Path) -> tuple[str, str, str] | None:
+    """Le (groupId, artifactId, version) da dependencia do RAML.
+
+    Sao essas coordenadas que localizam o RAML publicado no cache do Maven, usado como
+    base limpa na reconciliacao. Devolve None quando o `pom.xml` nao referencia RAML.
+    """
+    tree = etree.parse(str(pom))
+    dep = find_raml_dependency(tree)
+    if dep is None:
+        return None
+
+    def _texto(tag: str) -> str:
+        el = dep.find(f"m:{tag}", _NS)
+        return (el.text or "").strip() if el is not None else ""
+
+    grupo, artefato, versao = _texto("groupId"), _texto("artifactId"), _texto("version")
+    if not (grupo and artefato and versao):
+        return None
+    return grupo, artefato, versao
+
+
 def point_to_local_raml(pom: Path, raml_dir: Path) -> bool:
     """Reescreve `pom` para consumir o RAML de `raml_dir` via `systemPath`.
 

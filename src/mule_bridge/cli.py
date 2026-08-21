@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__, config, discovery
+from . import __version__, config, discovery, pomrewrite, reconcile
 from .config import BridgeConfig, ProjectPair
 from .errors import BridgeError, ConfigError, DiscoveryError, NonInteractiveError
 from .sync import Direction, SyncPlan, sync_all
@@ -324,6 +324,114 @@ def pull(
 ) -> None:
     """Apelido de `pararepo`, mantido para nao quebrar quem ja usava."""
     _run(Direction.PULL, work_root, delete, dry_run, parte)
+
+
+@app.command()
+def juntarraml(
+    versao_nova: str | None = typer.Argument(
+        None, help="Versao do Exchange a trazer. Sem nada, usa a mais nova do cache."
+    ),
+    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
+    aplicar: bool = typer.Option(
+        False, "--aplicar", help="Escreve o resultado. Sem isso, so mostra o que faria."
+    ),
+) -> None:
+    """Traz a versao nova do RAML preservando as suas edicoes (base do Exchange + suas por cima).
+
+    Nada e escrito enquanto houver conflito: os arquivos em conflito sao listados com os
+    dois lados, para serem resolvidos antes.
+    """
+    try:
+        cfg = _load(_resolve_root(work_root))
+        if cfg.raml is None:
+            raise ConfigError("Este projeto nao tem pasta de RAML configurada.")
+
+        coords = pomrewrite.read_raml_coords(cfg.work_root / cfg.api.work / "pom.xml")
+        if coords is None:
+            raise ConfigError("O pom.xml nao referencia um RAML do Exchange.")
+        grupo, artefato, versao_atual = coords
+
+        disponiveis = reconcile.versoes_no_cache(grupo, artefato)
+        if versao_nova is None:
+            candidatas = [v for v in disponiveis if v != versao_atual]
+            if not candidatas:
+                console.print(
+                    f"[green]Ja esta na versao mais nova baixada ({versao_atual}).[/]\n"
+                    "[dim]Abra o projeto no Studio para ele buscar uma versao mais recente.[/]"
+                )
+                raise typer.Exit()
+            versao_nova = candidatas[-1]
+
+        r = reconcile.preparar(
+            cfg.work_root / cfg.raml.work, grupo, artefato, versao_atual, versao_nova
+        )
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    _report_raml(r)
+
+    if not r.limpo:
+        console.print(
+            "\n[yellow]Nada foi escrito.[/] Resolva os conflitos acima e rode de novo, "
+            "ou peca ao seu agente de IA para combinar as duas versoes."
+        )
+        raise typer.Exit(1)
+
+    if not aplicar:
+        console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
+        return
+
+    escritos = reconcile.aplicar(r, cfg.work_root / cfg.raml.work)
+    console.print(f"\n[green]{escritos} arquivo(s) atualizado(s) em {cfg.raml.work}.[/]")
+    console.print(
+        f"[dim]Lembre de apontar o pom.xml para {versao_nova} quando for commitar.[/]"
+    )
+
+
+def _report_raml(r: reconcile.Reconciliacao) -> None:
+    console.print(f"[bold]RAML {r.versao_base} -> {r.versao_nova}[/]\n")
+
+    tabela = Table()
+    tabela.add_column("o que")
+    tabela.add_column("arquivos", justify="right")
+    tabela.add_row("juntados (seu + deles)", str(len(r.juntados)))
+    tabela.add_row("novos, vindos do Exchange", str(len(r.so_deles)))
+    tabela.add_row("so seus, preservados", str(len(r.so_meus)))
+    tabela.add_row("sem mudanca", str(len(r.inalterados)))
+    tabela.add_row("[red]em conflito[/]", f"[red]{len(r.conflitos)}[/]")
+    console.print(tabela)
+
+    for rel in r.juntados:
+        console.print(f"  [green]juntado[/]  {rel}")
+    for rel in r.so_deles:
+        console.print(f"  [cyan]novo[/]     {rel}")
+
+    for c in r.conflitos:
+        console.print(f"\n[red]conflito em {c.caminho}[/] — os dois mexeram no mesmo ponto:")
+        console.print("[dim]  sua versao:[/]")
+        for linha in _trecho_conflitante(c.merge_marcado, "sua versao"):
+            console.print(f"    {linha}")
+        console.print("[dim]  Exchange novo:[/]")
+        for linha in _trecho_conflitante(c.merge_marcado, "Exchange novo"):
+            console.print(f"    {linha}")
+
+
+def _trecho_conflitante(marcado: str, lado: str) -> list[str]:
+    """Extrai do merge marcado so as linhas de um dos lados, para exibicao."""
+    saida, dentro, qual = [], False, None
+    for linha in marcado.splitlines():
+        if linha.startswith("<<<<<<<"):
+            dentro, qual = True, "sua versao"
+            continue
+        if linha.startswith("=======") and dentro:
+            qual = "Exchange novo"
+            continue
+        if linha.startswith(">>>>>>>"):
+            dentro, qual = False, None
+            continue
+        if dentro and qual == lado:
+            saida.append(linha)
+    return saida[:6] or ["(sem linhas)"]
 
 
 @app.command()

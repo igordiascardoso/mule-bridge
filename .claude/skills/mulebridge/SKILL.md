@@ -1,6 +1,6 @@
 ---
 name: mulebridge
-description: "parastudio | pararepo | status | init — sincroniza um projeto Mule entre o repositorio onde voce edita e o workspace do Anypoint Studio. Use quando o usuario pedir para mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mulebridge com ou sem argumento."
+description: "parastudio | pararepo | juntarraml | status | init — sincroniza um projeto Mule entre o repositorio onde voce edita e o workspace do Anypoint Studio. Use quando o usuario pedir para mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mulebridge com ou sem argumento."
 ---
 
 # mulebridge
@@ -16,6 +16,7 @@ certo e reporta o resultado.
 | `parastudio` | `mule-bridge parastudio` |
 | `pararepo` | `mule-bridge pararepo` |
 | `status` | `mule-bridge status` |
+| `juntarraml`, `atualizar o raml`, `trazer o raml novo` | ver **juntarraml** abaixo |
 | `init`, `parear`, `configurar` | ver **init** abaixo |
 
 Cada direcao aceita uma parte opcional, quando o usuario quer mover so um lado:
@@ -79,6 +80,41 @@ Mostre o resultado e confirme antes de rodar sem a flag.
 quando o usuario pedir explicitamente, e mesmo assim rode antes com `--dry-run` e mostre a
 lista do que sera removido. No `pararepo`, o destino e o repositorio do usuario: apagar ali
 pode destruir trabalho nao commitado.
+
+## juntarraml
+
+Traz a versao nova do RAML do Exchange preservando as edicoes locais. Rode primeiro sem
+`--aplicar`, que so mostra o que aconteceria:
+
+```bash
+mule-bridge juntarraml
+```
+
+**Se nao houver conflito**, mostre a tabela ao usuario e pergunte se aplica. So entao:
+
+```bash
+mule-bridge juntarraml --aplicar
+```
+
+Lembre o usuario de apontar o `pom.xml` para a versao nova quando for commitar — o comando
+mexe so na pasta do RAML.
+
+### Quando houver conflito
+
+O comando lista os arquivos em conflito com os dois lados e **nao escreve nada**. E aqui
+que voce entra. Para cada conflito:
+
+1. Leia as duas versoes que o comando mostrou (a do usuario e a do Exchange).
+2. **Se as duas intencoes cabem juntas** — ex: um escreveu "Placa no padrao Mercosul" e o
+   outro "Placa (obrigatorio)" — proponha um texto que preserve as duas, e **pergunte ao
+   usuario** se pode aplicar. Nao aplique calado.
+3. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
+   combinacao. Mostre os dois lados e pergunte qual vale.
+4. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
+   rode `mule-bridge juntarraml --aplicar` de novo.
+
+**Nunca** escolha um lado por conta propria nem descarte a edicao do usuario para "resolver
+logo". Uma edicao perdida em silencio e o pior resultado possivel aqui.
 
 ## init
 

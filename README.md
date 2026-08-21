@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-24%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-36%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -204,6 +204,7 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 | `status` | Mostra o pareamento atual e o que um `parastudio` faria agora. |
 | `parastudio` | Leva o que você editou para o workspace do Studio. |
 | `pararepo` | Traz de volta o que o Studio alterou por conta própria. |
+| `juntarraml` | Traz a versão nova do RAML **preservando suas edições**. |
 
 As duas direções aceitam uma parte opcional, quando só um lado mudou:
 
@@ -223,6 +224,45 @@ mule-bridge parastudio         # os dois (padrão)
 
 > **Nota:** sem `--delete`, o sync só copia — nada é apagado em nenhum dos lados.
 > No `parastudio` o destino é o workspace; no `pararepo`, o seu repositório.
+
+### `juntarraml` — a versão nova sem perder o que você escreveu
+
+Quando sai uma versão nova do RAML no Exchange, copiar por cima apagaria suas edições. O
+`juntarraml` faz o contrário: trata a versão do Exchange como base e **reaplica suas
+edições por cima**, como um `git rebase`.
+
+```console
+$ mule-bridge juntarraml
+
+RAML 1.1.54 -> 1.1.55
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ o que                     ┃ arquivos ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ juntados (seu + deles)    │        2 │
+│ novos, vindos do Exchange │        7 │
+│ só seus, preservados      │        1 │
+│ sem mudança               │       15 │
+│ em conflito               │        0 │
+└───────────────────────────┴──────────┘
+
+Isso foi uma prévia — rode com --aplicar para gravar.
+```
+
+A base limpa sai do cache local do Maven (`~/.m2`), onde o Studio já guarda cada versão
+publicada — não é preciso credencial do Exchange nem estar online.
+
+**Os três casos:**
+
+| Situação | O que acontece |
+|---|---|
+| Você e o Exchange mexeram em pontos diferentes | Junta sozinho, os dois lados preservados |
+| Só um dos lados mexeu | Entra direto, sem cerimônia |
+| **Os dois mudaram a mesma linha** | Para, mostra as duas versões, e **não escreve nada** |
+
+No terceiro caso nenhum arquivo é tocado — nem os que deram certo. Sua pasta só é
+alterada quando o resultado inteiro está resolvido, então uma edição sua nunca é
+sobrescrita em silêncio.
 
 ## Como funciona
 
@@ -264,7 +304,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 24 testes
+pytest          # 36 testes
 ruff check .    # lint
 ```
 
@@ -277,9 +317,9 @@ do `pom.xml`, `config` lembra o pareamento.
 - [x] Descoberta interativa de projetos nos dois lados
 - [x] Sync bidirecional (`push` / `pull`) com `--dry-run`
 - [x] Reescrita do `pom.xml` isolada no workspace do Studio
-- [ ] **Reconciliação tipo `git rebase`** — hoje o sync é cópia direta: se os dois lados
-      alterarem o mesmo arquivo, o último a sincronizar vence. O alvo é tratar a versão do
-      Exchange como base limpa e reaplicar as edições locais por cima.
+- [x] **Reconciliação tipo `git rebase`** para o RAML (`juntarraml`)
+- [ ] Mesma reconciliação para os arquivos da API (hoje `parastudio`/`pararepo` são cópia
+      direta: se os dois lados alterarem o mesmo arquivo, o último a sincronizar vence)
 - [x] **Skill do Claude Code** — `/mulebridge parastudio` dentro de uma sessão
 - [ ] **MCP server** — os mesmos comandos como ferramentas MCP, para clients que não sejam
       o Claude Code
