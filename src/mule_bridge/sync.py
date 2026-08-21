@@ -118,15 +118,33 @@ def sync_pair(
 
 
 def sync_all(
-    cfg: BridgeConfig, direction: Direction, *, delete: bool = False, dry_run: bool = False
+    cfg: BridgeConfig,
+    direction: Direction,
+    *,
+    only: str | None = None,
+    delete: bool = False,
+    dry_run: bool = False,
 ) -> dict[str, SyncPlan]:
-    """Sincroniza API e RAML juntos — uma mudança no RAML afeta a API."""
+    """Sincroniza API e RAML.
+
+    Por padrão os dois vão juntos, porque uma mudança no RAML costuma implicar mudança na
+    API. `only="raml"` ou `only="api"` restringe a uma das partes, quando você sabe que só
+    ela mudou.
+    """
     raml_dir = None
     if direction is Direction.PUSH and cfg.raml is not None:
         raml_dir = cfg.studio_root / cfg.raml.studio
 
+    alvos = cfg.pairs
+    if only == "api":
+        alvos = [cfg.api]
+    elif only == "raml":
+        if cfg.raml is None:
+            raise SyncError("Este projeto nao tem pasta de RAML configurada.")
+        alvos = [cfg.raml]
+
     plans: dict[str, SyncPlan] = {}
-    for pair in cfg.pairs:
+    for pair in alvos:
         is_api = pair is cfg.api
         plans[pair.work] = sync_pair(
             pair,

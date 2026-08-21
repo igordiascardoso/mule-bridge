@@ -144,7 +144,7 @@ def init(
             )
         api = apis[
             _pick(
-                "Projeto de API nesta pasta de trabalho:",
+                f"Qual e a API que voce edita aqui?  ({work_root})",
                 [p.name for p in apis],
                 flag="--api",
                 given=api_name,
@@ -155,10 +155,10 @@ def init(
         ramls = [p for p in local if p.kind == "raml"]
         if ramls:
             labels = [f"{p.name}{'  (sugerido)' if p is raml_local else ''}" for p in ramls]
-            labels.append("nenhuma — não sincronizar RAML")
+            labels.append("nenhuma — nao sincronizar o RAML")
             default = ramls.index(raml_local) + 1 if raml_local else len(labels)
             idx = _pick(
-                "Pasta do RAML correspondente:",
+                f"E o RAML dessa API, qual e?  ({work_root})",
                 labels,
                 flag="--raml",
                 given=raml_name,
@@ -176,7 +176,7 @@ def init(
                 )
             studio_root = workspaces[
                 _choose(
-                    "Workspace do Anypoint Studio:",
+                    "Onde fica o workspace do Anypoint Studio?",
                     [str(w) for w in workspaces],
                     flag="--studio-root",
                 )
@@ -189,7 +189,7 @@ def init(
         names = [f"{p.name}  [{p.kind}]" for p in remote]
         studio_api = remote[
             _pick(
-                f"Projeto no workspace correspondente a {api.name}:",
+                f"No Studio, qual projeto e o seu {api.name}?  ({studio_root})",
                 names,
                 flag="--studio-api",
                 given=studio_api_name,
@@ -198,9 +198,9 @@ def init(
 
         studio_raml = None
         if raml_local is not None:
-            labels = [*names, "nenhuma — o RAML só existe na pasta de trabalho"]
+            labels = [*names, "nenhuma — o RAML so existe aqui, nao no Studio"]
             idx = _pick(
-                f"Pasta no workspace correspondente a {raml_local.name}:",
+                f"No Studio, qual pasta e o seu {raml_local.name}?  ({studio_root})",
                 labels,
                 flag="--studio-raml",
                 given=studio_raml_name,
@@ -245,44 +245,92 @@ def _report(plans: dict[str, SyncPlan], dry_run: bool) -> None:
         console.print("[dim]Nada a sincronizar — os dois lados já estão iguais.[/]")
 
 
-def _run(direction: Direction, work_root: Path | None, delete: bool, dry_run: bool) -> None:
+def _parse_parte(parte: str | None) -> str | None:
+    """Traduz o argumento opcional `raml`/`api` para o filtro do motor de sync."""
+    if parte is None:
+        return None
+    valor = parte.strip().lower()
+    if valor in {"raml", "api"}:
+        return valor
+    if valor in {"tudo", "todos", "all"}:
+        return None
+    raise typer.BadParameter(f"Parte {parte!r} desconhecida — use 'raml', 'api', ou nada (tudo).")
+
+
+def _run(
+    direction: Direction,
+    work_root: Path | None,
+    delete: bool,
+    dry_run: bool,
+    parte: str | None = None,
+) -> None:
     try:
         cfg = _load(_resolve_root(work_root))
-        plans = sync_all(cfg, direction, delete=delete, dry_run=dry_run)
+        plans = sync_all(
+            cfg, direction, only=_parse_parte(parte), delete=delete, dry_run=dry_run
+        )
     except BridgeError as exc:
         raise _fail(exc) from exc
     _report(plans, dry_run)
 
 
 @app.command()
-def push(
+def parastudio(
+    parte: str | None = typer.Argument(
+        None, help="'raml' ou 'api' para mandar so uma parte. Sem nada, manda as duas."
+    ),
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
     delete: bool = typer.Option(
         False, "--delete", help="Remove no workspace o que ja nao existe na pasta de trabalho."
     ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
 ) -> None:
-    """Pasta de trabalho -> workspace do Studio (reescreve o pom.xml só no destino)."""
-    _run(Direction.PUSH, work_root, delete, dry_run)
+    """Manda o que voce editou aqui para o workspace do Studio."""
+    _run(Direction.PUSH, work_root, delete, dry_run, parte)
 
 
 @app.command()
-def pull(
+def pararepo(
+    parte: str | None = typer.Argument(
+        None, help="'raml' ou 'api' para trazer so uma parte. Sem nada, traz as duas."
+    ),
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
     delete: bool = typer.Option(
         False, "--delete", help="Remove na pasta de trabalho o que ja nao existe no workspace."
     ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
 ) -> None:
-    """Workspace do Studio -> pasta de trabalho (ignora o pom.xml apontado ao RAML local)."""
-    _run(Direction.PULL, work_root, delete, dry_run)
+    """Traz para o seu repositorio o que mudou no workspace do Studio."""
+    _run(Direction.PULL, work_root, delete, dry_run, parte)
+
+
+@app.command(hidden=True)
+def push(
+    parte: str | None = typer.Argument(None),
+    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
+    delete: bool = typer.Option(False, "--delete"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n"),
+) -> None:
+    """Apelido de `parastudio`, mantido para nao quebrar quem ja usava."""
+    _run(Direction.PUSH, work_root, delete, dry_run, parte)
+
+
+@app.command(hidden=True)
+def pull(
+    parte: str | None = typer.Argument(None),
+    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
+    delete: bool = typer.Option(False, "--delete"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n"),
+) -> None:
+    """Apelido de `pararepo`, mantido para nao quebrar quem ja usava."""
+    _run(Direction.PULL, work_root, delete, dry_run, parte)
 
 
 @app.command()
 def status(
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
 ) -> None:
-    """Mostra o pareamento configurado e o que um push faria agora."""
+    """Mostra o pareamento configurado e o que um parastudio faria agora."""
     try:
         cfg = _load(_resolve_root(work_root))
     except BridgeError as exc:

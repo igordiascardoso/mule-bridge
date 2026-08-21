@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-24%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -162,8 +162,8 @@ estiver num caminho padrão.
 Daí em diante:
 
 ```bash
-mule-bridge push           # suas edições  ->  Studio
-mule-bridge pull           # Studio        ->  seu repositório
+mule-bridge parastudio     # suas edições  ->  Studio
+mule-bridge pararepo       # Studio        ->  seu repositório
 ```
 
 ## Uso com agentes de IA
@@ -179,16 +179,16 @@ Studio"*. Para que o agente saiba que a ferramenta existe num projeto, documente
 os seus projetos:
 
 ```bash
-mkdir -p ~/.claude/skills/mule-bridge
-curl -o ~/.claude/skills/mule-bridge/SKILL.md   https://raw.githubusercontent.com/igordiascardoso/mule-bridge/main/.claude/skills/mule-bridge/SKILL.md
+mkdir -p ~/.claude/skills/mulebridge
+curl -o ~/.claude/skills/mulebridge/SKILL.md   https://raw.githubusercontent.com/igordiascardoso/mule-bridge/main/.claude/skills/mulebridge/SKILL.md
 ```
 
 Depois, dentro de uma sessão do Claude Code:
 
 ```
-/mule-bridge push      # suas edições  ->  Studio
-/mule-bridge pull      # Studio        ->  seu repositório
-/mule-bridge status    # não altera nada
+/mulebridge parastudio     # suas edições  ->  Studio
+/mulebridge pararepo       # Studio        ->  seu repositório
+/mulebridge status         # não altera nada
 ```
 
 A skill não reimplementa nada: ela escolhe o comando certo, roda `--dry-run` antes de
@@ -201,11 +201,19 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 | Comando | O que faz |
 |---|---|
 | `init` | Descobre os projetos dos dois lados e grava o pareamento. |
-| `status` | Mostra o pareamento atual e o que um `push` faria agora. |
-| `push` | Leva o que você editou para o workspace do Studio. |
-| `pull` | Traz de volta o que o Studio alterou por conta própria. |
+| `status` | Mostra o pareamento atual e o que um `parastudio` faria agora. |
+| `parastudio` | Leva o que você editou para o workspace do Studio. |
+| `pararepo` | Traz de volta o que o Studio alterou por conta própria. |
 
-**Flags** de `push` e `pull`:
+As duas direções aceitam uma parte opcional, quando só um lado mudou:
+
+```bash
+mule-bridge parastudio raml    # só o RAML
+mule-bridge pararepo api       # só a API
+mule-bridge parastudio         # os dois (padrão)
+```
+
+**Flags** de `parastudio` e `pararepo`:
 
 | Flag | Efeito |
 |---|---|
@@ -214,7 +222,7 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 | `--work-root`, `-w` | Roda a partir de outro diretório, em vez do atual. |
 
 > **Nota:** sem `--delete`, o sync só copia — nada é apagado em nenhum dos lados.
-> No `push` o destino é o workspace; no `pull`, o seu repositório.
+> No `parastudio` o destino é o workspace; no `pararepo`, o seu repositório.
 
 ## Como funciona
 
@@ -256,7 +264,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 18 testes
+pytest          # 24 testes
 ruff check .    # lint
 ```
 
@@ -272,7 +280,7 @@ do `pom.xml`, `config` lembra o pareamento.
 - [ ] **Reconciliação tipo `git rebase`** — hoje o sync é cópia direta: se os dois lados
       alterarem o mesmo arquivo, o último a sincronizar vence. O alvo é tratar a versão do
       Exchange como base limpa e reaplicar as edições locais por cima.
-- [x] **Skill do Claude Code** — `/mule-bridge push` dentro de uma sessão
+- [x] **Skill do Claude Code** — `/mulebridge parastudio` dentro de uma sessão
 - [ ] **MCP server** — os mesmos comandos como ferramentas MCP, para clients que não sejam
       o Claude Code
 - [ ] **`AGENTS.md` de exemplo** — trecho pronto para colar num projeto Mule, para o agente

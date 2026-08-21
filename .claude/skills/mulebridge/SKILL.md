@@ -1,9 +1,9 @@
 ---
-name: mule-bridge
-description: "init | push | pull | status — sincroniza um projeto Mule entre a pasta de trabalho (repositorio git) e o workspace do Anypoint Studio. Use quando o usuario pedir para sincronizar, mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mule-bridge com ou sem argumento."
+name: mulebridge
+description: "parastudio | pararepo | status | init — sincroniza um projeto Mule entre o repositorio onde voce edita e o workspace do Anypoint Studio. Use quando o usuario pedir para mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mulebridge com ou sem argumento."
 ---
 
-# mule-bridge
+# mulebridge
 
 Camada fina sobre a CLI `mule-bridge`. **Nao reimplemente nada aqui** — toda a logica
 (descoberta, sync, reescrita do `pom.xml`) vive na CLI. Esta skill so escolhe o comando
@@ -11,32 +11,42 @@ certo e reporta o resultado.
 
 ## Argumentos
 
-O usuario escreve `/mule-bridge <acao>`. Mapeie assim:
-
-| Argumento | Comando |
+| O usuario digita | Comando |
 |---|---|
-| `push`, ou o contexto e "mandar pro Studio" | `mule-bridge push` |
-| `pull` | `mule-bridge pull` |
-| `status`, `o que mudou` | `mule-bridge status` |
+| `parastudio` | `mule-bridge parastudio` |
+| `pararepo` | `mule-bridge pararepo` |
+| `status` | `mule-bridge status` |
 | `init`, `parear`, `configurar` | ver **init** abaixo |
+
+Cada direcao aceita uma parte opcional, quando o usuario quer mover so um lado:
+
+| O usuario digita | Comando |
+|---|---|
+| `parastudio raml` | `mule-bridge parastudio raml` |
+| `parastudio api` | `mule-bridge parastudio api` |
+| `pararepo raml` | `mule-bridge pararepo raml` |
+| `pararepo api` | `mule-bridge pararepo api` |
+
+Sem a parte, vao os dois — que e o caso normal, porque uma mudanca no RAML costuma
+implicar mudanca na API.
 
 ### Sem argumento nenhum
 
-`/mule-bridge` sozinho e o caso mais comum — o usuario pode nem saber quais argumentos
+`/mulebridge` sozinho e o caso mais comum — o usuario pode nem saber quais argumentos
 existem. **Nunca sincronize por conta propria aqui.** Rode `mule-bridge status` e decida
 pelo resultado:
 
 - **Deu erro de config ausente** — o projeto ainda nao foi pareado. Nao peca para o usuario
   digitar outro comando: conduza o **init** (abaixo) na hora, ja mostrando as opcoes.
 - **Mostrou o pareamento** — apresente a tabela e diga, em uma linha, o que ele pode fazer
-  em seguida: `/mule-bridge push` para mandar pro Studio, `/mule-bridge pull` para trazer
-  de volta.
+  em seguida: `/mulebridge parastudio` para mandar pro Studio, `/mulebridge pararepo` para
+  trazer de volta.
 
 ## Antes de sincronizar
 
-1. Rode a partir da **raiz da pasta de trabalho** (onde fica o `.mule-bridge.toml`), nao de
-   dentro da pasta da API. Se o comando falhar dizendo que nao ha config, suba um nivel ou
-   passe `-w <raiz>`.
+1. Rode a partir da **raiz do repositorio** (onde fica o `.mule-bridge.toml`), nao de dentro
+   da pasta da API. Se o comando falhar dizendo que nao ha config, suba um nivel ou passe
+   `-w <raiz>`.
 2. Se o usuario nao rodou `init` ainda, o comando falha pedindo isso. Nao invente a config
    nem escreva o `.mule-bridge.toml` na mao.
 
@@ -45,13 +55,13 @@ pelo resultado:
 Rode o comando direto no terminal e mostre a tabela de resultado ao usuario:
 
 ```bash
-mule-bridge push        # pasta de trabalho -> workspace do Studio
-mule-bridge pull        # workspace do Studio -> pasta de trabalho
-mule-bridge status      # nao altera nada; mostra o que um push faria
+mule-bridge parastudio     # o que voce editou -> workspace do Studio
+mule-bridge pararepo       # workspace do Studio -> seu repositorio
+mule-bridge status         # nao altera nada
 ```
 
-Depois do `push` **nao ha passo extra**: o Studio detecta a mudanca no disco e redeploya
-sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
+Depois do `parastudio` **nao ha passo extra**: o Studio detecta a mudanca no disco e
+redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
 
 ## Quando usar --dry-run
 
@@ -59,7 +69,7 @@ Rode `--dry-run` antes do sync de verdade quando:
 
 - for a primeira sincronizacao deste projeto na sessao;
 - o usuario demonstrar duvida sobre o que vai mudar;
-- for um `pull` (o destino sao os arquivos versionados do usuario).
+- for um `pararepo` (o destino sao os arquivos versionados do usuario).
 
 Mostre o resultado e confirme antes de rodar sem a flag.
 
@@ -67,7 +77,7 @@ Mostre o resultado e confirme antes de rodar sem a flag.
 
 `--delete` apaga arquivos no destino. **Nunca** passe essa flag por conta propria — so
 quando o usuario pedir explicitamente, e mesmo assim rode antes com `--dry-run` e mostre a
-lista do que sera removido. No `pull`, o destino e o repositorio do usuario: apagar ali
+lista do que sera removido. No `pararepo`, o destino e o repositorio do usuario: apagar ali
 pode destruir trabalho nao commitado.
 
 ## init
@@ -102,6 +112,7 @@ Rode `init` uma vez por repositorio: o resultado fica no `.mule-bridge.toml`.
 
 | Mensagem | O que fazer |
 |---|---|
-| `Nenhuma config encontrada` | O usuario precisa rodar `mule-bridge init` na raiz do repo. |
+| `Nenhuma config encontrada` | O usuario precisa rodar o `init` na raiz do repo. |
 | `Origem nao existe` | O caminho no `.mule-bridge.toml` mudou de lugar; rode `init` de novo com `--force`. |
+| `Este projeto nao tem pasta de RAML configurada` | Pediram `raml` mas o `init` foi feito sem RAML. Refaca com `--force`. |
 | `command not found` | A CLI nao esta instalada ou nao esta no PATH. Ver o README para instalar. |
