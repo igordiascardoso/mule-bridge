@@ -1,7 +1,7 @@
 """Config de editor para repositorios aninhados.
 
 O problema: quando as pastas do projeto sao repositorios git proprios dentro da raiz (o
-caso comum de `leilao-api/` com seu remoto, ao lado de `leilao-raml/`), o VS Code por
+caso comum de `pedidos-api/` com seu remoto, ao lado de `pedidos-raml/`), o VS Code por
 padrao lista so o repositorio da raiz. As edicoes feitas dentro das pastas aninhadas
 existem para o git, mas nao aparecem no painel do editor — e nao ver o que se mudou e
 justamente o que esta ferramenta tenta evitar.

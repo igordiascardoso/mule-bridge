@@ -446,7 +446,7 @@ para a versão nova — é isso que fecha o ciclo e encerra o aviso.
 
 **O que vem de fora é commitado à parte.** Ao aplicar, os arquivos que chegaram do
 Exchange sem cruzar com edição sua vão para um commit próprio
-(`chore(raml): especificacao leilao 1.1.55`). O que sobra no `git status` é o seu trabalho
+(`chore(raml): especificacao pedidos 1.1.55`). O que sobra no `git status` é o seu trabalho
 — então um `git diff` mostra só ele, em vez de misturar as duas coisas.
 
 No terceiro caso nenhum arquivo é tocado — nem os que deram certo. Sua pasta só é
@@ -505,6 +505,16 @@ pip install -e ".[dev]"
 pytest          # 201 testes
 ruff check .    # lint
 ```
+
+Treze desses testes rodam contra um projeto Mule e um RAML de verdade, e são **pulados por
+padrão** — nenhum caminho ou identificador de organização fica no código, que é público.
+Para rodá-los, aponte os seus:
+
+```bash
+PONTE_TESTE_API=/caminho/para/uma-api PONTE_TESTE_GRUPO=<groupId-do-exchange> PONTE_TESTE_ARTEFATO=<artifactId-do-raml> pytest
+```
+
+O projeto apontado nunca é alterado: os testes trabalham sobre uma cópia temporária.
 
 A lógica de negócio vive inteira na CLI ([`src/mule_bridge/`](src/mule_bridge/)):
 `discovery` acha os projetos, `sync` move os arquivos, `pomrewrite` cuida do caso especial

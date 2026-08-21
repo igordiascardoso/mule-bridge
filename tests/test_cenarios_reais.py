@@ -13,6 +13,7 @@ rodando em qualquer maquina e no CI.
 from __future__ import annotations
 
 import difflib
+import os
 from pathlib import Path
 
 import pytest
@@ -20,18 +21,29 @@ import pytest
 from mule_bridge import reconcile
 from mule_bridge.reconcile import ReconcileError
 
-#: Artefato usado para os testes reais. Trocar aqui adapta o arquivo a outro projeto.
-GRUPO = "GRUPO-REMOVIDO"
-ARTEFATO = "leilao"
+#: Artefato a usar, vindo do ambiente — nunca fixo no codigo, que e publico.
+#:
+#:     PONTE_TESTE_GRUPO=<groupId>  PONTE_TESTE_ARTEFATO=<artifactId>  pytest
+#:
+#: Sem essas variaveis os testes deste arquivo sao pulados. E de proposito: o groupId de
+#: um Exchange identifica a organizacao dona da API, e nao tem por que estar num
+#: repositorio aberto.
+GRUPO = os.environ.get("PONTE_TESTE_GRUPO", "")
+ARTEFATO = os.environ.get("PONTE_TESTE_ARTEFATO", "")
 
 
 def _versoes() -> list[str]:
+    if not (GRUPO and ARTEFATO):
+        return []
     return reconcile.versoes_no_cache(GRUPO, ARTEFATO)
 
 
 pytestmark = pytest.mark.skipif(
     len(_versoes()) < 2,
-    reason="precisa de pelo menos duas versoes do RAML no cache do Maven",
+    reason=(
+        "precisa de PONTE_TESTE_GRUPO e PONTE_TESTE_ARTEFATO apontando para um artefato "
+        "com pelo menos duas versoes no cache do Maven"
+    ),
 )
 
 

@@ -9,9 +9,9 @@ codigo realista num lugar so evita que os dois divirjam.
 from __future__ import annotations
 
 RAML_BASE = """#%RAML 1.0
-title: Leilao de Veiculos
+title: Catalogo de Produtos
 version: v1
-baseUri: https://api.exemplo.com/leilao/{version}
+baseUri: https://api.exemplo.com/catalogo/{version}
 mediaType: application/json
 
 securitySchemes:
@@ -28,40 +28,40 @@ traits:
         default: 20
 
 types:
-  Veiculo:
+  Produto:
     type: object
     properties:
       id:
         type: integer
         required: true
-      placa:
+      sku:
         type: string
-        pattern: "^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$"
-        description: Placa no padrao Mercosul
-      chassi:
+        pattern: "^[A-Z]{3}-[0-9]{4}$"
+        description: Codigo interno do produto
+      ean:
         type: string
         minLength: 17
         maxLength: 17
       situacao:
         type: string
-        enum: [DISPONIVEL, ARREMATADO, RETIRADO]
-  Lance:
+        enum: [ATIVO, ESGOTADO, DESCONTINUADO]
+  Pedido:
     type: object
     properties:
-      veiculoId: integer
+      produtoId: integer
       valor:
         type: number
         minimum: 0
       dataHora: datetime
 
-/veiculos:
+/produtos:
   securedBy: [jwt]
   get:
     is: [paginado]
     responses:
       200:
         body:
-          type: Veiculo[]
+          type: Produto[]
   /{id}:
     uriParameters:
       id: integer
@@ -69,21 +69,21 @@ types:
       responses:
         200:
           body:
-            type: Veiculo
+            type: Produto
         404:
-          description: Veiculo nao encontrado
+          description: Produto nao encontrado
 
-/lances:
+/pedidos:
   securedBy: [jwt]
   post:
     body:
-      type: Lance
+      type: Pedido
     responses:
       201:
         body:
-          type: Lance
+          type: Pedido
       409:
-        description: Lance menor que o atual
+        description: Quantidade indisponivel
 """
 
 # --- Massa: um XML Mule com processadores de verdade -----------------------------
@@ -94,10 +94,10 @@ MULE_BASE = """<?xml version="1.0" encoding="UTF-8"?>
       xmlns:http="http://www.mulesoft.org/schema/mule/http"
       xmlns:db="http://www.mulesoft.org/schema/mule/db">
 
-    <flow name="get-veiculos">
-        <http:listener config-ref="api-httpListenerConfig" path="/veiculos"/>
+    <flow name="get-produtos">
+        <http:listener config-ref="api-httpListenerConfig" path="/produtos"/>
         <db:select config-ref="postgres-config">
-            <db:sql>SELECT id, placa, chassi, situacao FROM veiculo</db:sql>
+            <db:sql>SELECT id, sku, ean, situacao FROM produto</db:sql>
         </db:select>
         <ee:transform>
             <ee:message>
@@ -106,8 +106,8 @@ output application/json
 ---
 payload map (v) -> {
     id: v.id,
-    placa: v.placa,
-    chassi: v.chassi,
+    sku: v.sku,
+    ean: v.ean,
     situacao: v.situacao
 }]]></ee:set-payload>
             </ee:message>
@@ -119,18 +119,18 @@ payload map (v) -> {
         </error-handler>
     </flow>
 
-    <flow name="post-lances">
-        <http:listener config-ref="api-httpListenerConfig" path="/lances"/>
-        <flow-ref name="valida-lance"/>
+    <flow name="post-pedidos">
+        <http:listener config-ref="api-httpListenerConfig" path="/pedidos"/>
+        <flow-ref name="valida-pedido"/>
         <db:insert config-ref="postgres-config">
-            <db:sql>INSERT INTO lance (veiculo_id, valor) VALUES (:v, :val)</db:sql>
+            <db:sql>INSERT INTO pedido (produto_id, valor) VALUES (:p, :val)</db:sql>
         </db:insert>
     </flow>
 
-    <sub-flow name="valida-lance">
+    <sub-flow name="valida-pedido">
         <choice>
             <when expression="#[payload.valor &lt;= 0]">
-                <raise-error type="APP:LANCE_INVALIDO"/>
+                <raise-error type="APP:PEDIDO_INVALIDO"/>
             </when>
         </choice>
     </sub-flow>

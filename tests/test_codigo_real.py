@@ -54,13 +54,13 @@ def _rec(tres, meu: str, novo: str, base: str, rel: str = "api.raml"):
 def test_eu_adiciono_property_eles_adicionam_outra_no_mesmo_type(tres):
     """Duas properties novas no mesmo `Veiculo`, em pontos distintos do bloco."""
     meu = RAML_BASE.replace(
-        "      chassi:\n",
-        "      renavam:\n        type: string\n        minLength: 11\n      chassi:\n",
+        "      ean:\n",
+        "      marca:\n        type: string\n        minLength: 11\n      ean:\n",
     )
     novo = RAML_BASE.replace(
-        "        enum: [DISPONIVEL, ARREMATADO, RETIRADO]\n",
-        "        enum: [DISPONIVEL, ARREMATADO, RETIRADO]\n"
-        "      anoFabricacao:\n        type: integer\n",
+        "        enum: [ATIVO, ESGOTADO, DESCONTINUADO]\n",
+        "        enum: [ATIVO, ESGOTADO, DESCONTINUADO]\n"
+        "      peso:\n        type: integer\n",
     )
 
     r = _rec(tres, meu, novo, RAML_BASE)
@@ -68,20 +68,20 @@ def test_eu_adiciono_property_eles_adicionam_outra_no_mesmo_type(tres):
     final = (tres["local"] / "api.raml").read_text(encoding="utf-8")
 
     assert r.limpo, f"conflitos: {[c.caminho for c in r.conflitos]}"
-    assert "renavam:" in final and "minLength: 11" in final, "minha property inteira"
-    assert "anoFabricacao:" in final, "a property nova deles"
-    assert final.count("      chassi:") == 1, "nada duplicado"
+    assert "marca:" in final and "minLength: 11" in final, "minha property inteira"
+    assert "peso:" in final, "a property nova deles"
+    assert final.count("      ean:") == 1, "nada duplicado"
 
 
-def test_eu_mudo_o_pattern_da_placa_eles_mudam_o_enum(tres):
+def test_eu_mudo_o_pattern_do_sku_eles_mudam_o_enum(tres):
     """Duas regras de validacao diferentes, no mesmo type: tem de juntar."""
     meu = RAML_BASE.replace(
-        '        pattern: "^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$"',
-        '        pattern: "^[A-Z]{3}-?[0-9]{4}$"',
+        '        pattern: "^[A-Z]{3}-[0-9]{4}$"',
+        '        pattern: "^[A-Z]{2}-[0-9]{5}$"',
     )
     novo = RAML_BASE.replace(
-        "        enum: [DISPONIVEL, ARREMATADO, RETIRADO]",
-        "        enum: [DISPONIVEL, ARREMATADO, RETIRADO, CANCELADO]",
+        "        enum: [ATIVO, ESGOTADO, DESCONTINUADO]",
+        "        enum: [ATIVO, ESGOTADO, DESCONTINUADO, DEVOLVIDO]",
     )
 
     r = _rec(tres, meu, novo, RAML_BASE)
@@ -89,18 +89,18 @@ def test_eu_mudo_o_pattern_da_placa_eles_mudam_o_enum(tres):
     final = (tres["local"] / "api.raml").read_text(encoding="utf-8")
 
     assert r.limpo
-    assert "^[A-Z]{3}-?[0-9]{4}$" in final, "meu pattern"
-    assert "CANCELADO" in final, "o enum novo deles"
+    assert "^[A-Z]{2}-[0-9]{5}$" in final, "meu pattern"
+    assert "DEVOLVIDO" in final, "o enum novo deles"
 
 
 def test_os_dois_mudam_o_mesmo_pattern_conflita(tres):
     """Mesma linha, regras incompativeis: nao ha combinacao possivel, so decisao."""
     meu = RAML_BASE.replace(
-        '        pattern: "^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$"',
-        '        pattern: "^[A-Z]{3}-?[0-9]{4}$"',
+        '        pattern: "^[A-Z]{3}-[0-9]{4}$"',
+        '        pattern: "^[A-Z]{2}-[0-9]{5}$"',
     )
     novo = RAML_BASE.replace(
-        '        pattern: "^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$"',
+        '        pattern: "^[A-Z]{3}-[0-9]{4}$"',
         '        pattern: "^[A-Z]{4}[0-9]{3}$"',
     )
     antes = meu
@@ -116,13 +116,13 @@ def test_os_dois_mudam_o_mesmo_pattern_conflita(tres):
 def test_eu_adiciono_type_novo_eles_adicionam_outro(tres):
     """Dois types novos, cada um depois de um bloco diferente."""
     meu = RAML_BASE.replace(
-        "\n/veiculos:",
-        "\n  Arrematante:\n    type: object\n    properties:\n"
-        "      cpf:\n        type: string\n        minLength: 11\n\n/veiculos:",
+        "\n/produtos:",
+        "\n  Fornecedor:\n    type: object\n    properties:\n"
+        "      cpf:\n        type: string\n        minLength: 11\n\n/produtos:",
     )
     novo = RAML_BASE.replace(
-        "  Lance:\n",
-        "  Documento:\n    type: object\n    properties:\n      url: string\n  Lance:\n",
+        "  Pedido:\n",
+        "  Documento:\n    type: object\n    properties:\n      url: string\n  Pedido:\n",
     )
 
     r = _rec(tres, meu, novo, RAML_BASE)
@@ -130,22 +130,22 @@ def test_eu_adiciono_type_novo_eles_adicionam_outro(tres):
     final = (tres["local"] / "api.raml").read_text(encoding="utf-8")
 
     assert r.limpo
-    assert "Arrematante:" in final and "cpf:" in final
+    assert "Fornecedor:" in final and "cpf:" in final
     assert "Documento:" in final and "url: string" in final
-    assert "Lance:" in final, "o type que ja existia continua"
+    assert "Pedido:" in final, "o type que ja existia continua"
 
 
 # --- RAML: endpoints ------------------------------------------------------------
 
 
 def test_eu_adiciono_metodo_eles_adicionam_endpoint(tres):
-    """Eu ponho um POST em /veiculos, eles criam /leiloes: recursos independentes."""
+    """Eu ponho um POST em /produtos, eles criam /categorias: recursos independentes."""
     meu = RAML_BASE.replace(
         "  /{id}:\n",
-        "  post:\n    body:\n      type: Veiculo\n    responses:\n      201:\n  /{id}:\n",
+        "  post:\n    body:\n      type: Produto\n    responses:\n      201:\n  /{id}:\n",
     )
     novo = RAML_BASE.rstrip() + (
-        "\n\n/leiloes:\n  securedBy: [jwt]\n  get:\n    responses:\n      200:\n"
+        "\n\n/categorias:\n  securedBy: [jwt]\n  get:\n    responses:\n      200:\n"
     )
 
     r = _rec(tres, meu, novo, RAML_BASE)
@@ -153,21 +153,21 @@ def test_eu_adiciono_metodo_eles_adicionam_endpoint(tres):
     final = (tres["local"] / "api.raml").read_text(encoding="utf-8")
 
     assert r.limpo
-    assert "  post:\n    body:\n      type: Veiculo" in final, "meu metodo novo"
-    assert "/leiloes:" in final, "o recurso novo deles"
+    assert "  post:\n    body:\n      type: Produto" in final, "meu metodo novo"
+    assert "/categorias:" in final, "o recurso novo deles"
 
 
 def test_eu_adiciono_resposta_de_erro_eles_adicionam_outra(tres):
     """Dois codigos de resposta no mesmo metodo — o caso classico de merge em RAML."""
     meu = RAML_BASE.replace(
-        "        404:\n          description: Veiculo nao encontrado",
+        "        404:\n          description: Produto nao encontrado",
         "        403:\n          description: Sem permissao\n"
-        "        404:\n          description: Veiculo nao encontrado",
+        "        404:\n          description: Produto nao encontrado",
     )
     novo = RAML_BASE.replace(
-        "      409:\n        description: Lance menor que o atual",
-        "      409:\n        description: Lance menor que o atual\n"
-        "      422:\n        description: Veiculo ja arrematado",
+        "      409:\n        description: Quantidade indisponivel",
+        "      409:\n        description: Quantidade indisponivel\n"
+        "      422:\n        description: Produto descontinuado",
     )
 
     r = _rec(tres, meu, novo, RAML_BASE)
@@ -176,7 +176,7 @@ def test_eu_adiciono_resposta_de_erro_eles_adicionam_outra(tres):
 
     assert r.limpo
     assert "403:" in final and "Sem permissao" in final
-    assert "422:" in final and "ja arrematado" in final
+    assert "422:" in final and "descontinuado" in final
 
 
 def test_include_novo_dos_dois_lados_no_mesmo_ponto_conflita(tres):
@@ -247,14 +247,14 @@ def test_arquivo_de_include_novo_vem_junto(tres):
 def test_eu_edito_o_dataweave_eles_adicionam_flow(tres):
     """O caso mais comum do dia a dia: eu mexo na transformacao, o scaffold gera flow."""
     meu = MULE_BASE.replace(
-        "    situacao: v.situacao\n", "    situacao: v.situacao,\n    renavam: v.renavam\n"
+        "    situacao: v.situacao\n", "    situacao: v.situacao,\n    marca: v.marca\n"
     )
     novo = MULE_BASE.replace(
         "</mule>",
-        """    <flow name="get-veiculos-id">
-        <http:listener config-ref="api-httpListenerConfig" path="/veiculos/{id}"/>
+        """    <flow name="get-produtos-id">
+        <http:listener config-ref="api-httpListenerConfig" path="/produtos/{id}"/>
         <db:select config-ref="postgres-config">
-            <db:sql>SELECT * FROM veiculo WHERE id = :id</db:sql>
+            <db:sql>SELECT * FROM produto WHERE id = :id</db:sql>
         </db:select>
     </flow>
 </mule>""",
@@ -265,8 +265,8 @@ def test_eu_edito_o_dataweave_eles_adicionam_flow(tres):
     final = (tres["local"] / "application.xml").read_text(encoding="utf-8")
 
     assert r.limpo, f"conflitos: {[c.caminho for c in r.conflitos]}"
-    assert "renavam: v.renavam" in final, "minha alteracao no DataWeave"
-    assert 'flow name="get-veiculos-id"' in final, "o flow que o scaffold gerou"
+    assert "marca: v.marca" in final, "minha alteracao no DataWeave"
+    assert 'flow name="get-produtos-id"' in final, "o flow que o scaffold gerou"
     assert final.count("<flow ") == 3
 
 
@@ -274,14 +274,14 @@ def test_eu_adiciono_processador_no_meio_de_um_flow(tres):
     """Insiro um logger antes do db:select; eles mexem no outro flow."""
     meu = MULE_BASE.replace(
         '        <db:select config-ref="postgres-config">\n'
-        "            <db:sql>SELECT id, placa, chassi, situacao FROM veiculo</db:sql>",
-        '        <logger level="INFO" message="consultando veiculos"/>\n'
+        "            <db:sql>SELECT id, sku, ean, situacao FROM produto</db:sql>",
+        '        <logger level="INFO" message="consultando produtos"/>\n'
         '        <db:select config-ref="postgres-config">\n'
-        "            <db:sql>SELECT id, placa, chassi, situacao FROM veiculo</db:sql>",
+        "            <db:sql>SELECT id, sku, ean, situacao FROM produto</db:sql>",
     )
     novo = MULE_BASE.replace(
-        '        <flow-ref name="valida-lance"/>',
-        '        <flow-ref name="valida-lance"/>\n'
+        '        <flow-ref name="valida-pedido"/>',
+        '        <flow-ref name="valida-pedido"/>\n'
         '        <flow-ref name="verifica-limite"/>',
     )
 
@@ -290,19 +290,19 @@ def test_eu_adiciono_processador_no_meio_de_um_flow(tres):
     final = (tres["local"] / "application.xml").read_text(encoding="utf-8")
 
     assert r.limpo
-    assert 'message="consultando veiculos"' in final
+    assert 'message="consultando produtos"' in final
     assert 'flow-ref name="verifica-limite"' in final
 
 
 def test_os_dois_mexem_no_mesmo_sql_conflita(tres):
     """Mesma query alterada de formas diferentes: decisao do usuario."""
     meu = MULE_BASE.replace(
-        "SELECT id, placa, chassi, situacao FROM veiculo",
-        "SELECT id, placa, chassi, situacao, renavam FROM veiculo",
+        "SELECT id, sku, ean, situacao FROM produto",
+        "SELECT id, sku, ean, situacao, marca FROM produto",
     )
     novo = MULE_BASE.replace(
-        "SELECT id, placa, chassi, situacao FROM veiculo",
-        "SELECT id, placa, chassi, situacao FROM veiculo WHERE ativo = true",
+        "SELECT id, sku, ean, situacao FROM produto",
+        "SELECT id, sku, ean, situacao FROM produto WHERE ativo = true",
     )
     antes = meu
 
@@ -315,12 +315,12 @@ def test_os_dois_mexem_no_mesmo_sql_conflita(tres):
 
     # E a combinacao das duas intencoes e aplicavel.
     combinado = MULE_BASE.replace(
-        "SELECT id, placa, chassi, situacao FROM veiculo",
-        "SELECT id, placa, chassi, situacao, renavam FROM veiculo WHERE ativo = true",
+        "SELECT id, sku, ean, situacao FROM produto",
+        "SELECT id, sku, ean, situacao, marca FROM produto WHERE ativo = true",
     )
     reconcile.aplicar(r, tres["local"], resolucoes={"application.xml": combinado})
     final = (tres["local"] / "application.xml").read_text(encoding="utf-8")
-    assert "renavam FROM veiculo WHERE ativo = true" in final
+    assert "marca FROM produto WHERE ativo = true" in final
 
 
 def test_eu_adiciono_error_handler_eles_adicionam_outro_tipo(tres):
@@ -357,7 +357,7 @@ def test_cdata_com_dataweave_multilinha_sobrevive(tres):
     """DataWeave dentro de CDATA: nao pode ser quebrado nem escapado."""
     meu = MULE_BASE.replace(
         "payload map (v) -> {",
-        "payload filter (v) -> v.situacao == 'DISPONIVEL' map (v) -> {",
+        "payload filter (v) -> v.situacao == 'ATIVO' map (v) -> {",
     )
     novo = MULE_BASE.replace("</mule>", '    <flow name="outro"/>\n</mule>')
 
@@ -366,7 +366,7 @@ def test_cdata_com_dataweave_multilinha_sobrevive(tres):
     final = (tres["local"] / "application.xml").read_text(encoding="utf-8")
 
     assert r.limpo
-    assert "filter (v) -> v.situacao == 'DISPONIVEL'" in final
+    assert "filter (v) -> v.situacao == 'ATIVO'" in final
     assert "<![CDATA[%dw 2.0" in final, "o CDATA continua intacto"
     assert "]]>" in final
 
@@ -396,9 +396,9 @@ def test_projeto_inteiro_com_multiplos_arquivos_de_codigo(tres):
     base_files = {
         "api.raml": RAML_BASE,
         "security/jwt.raml": "type: x-custom\ndescribedBy:\n  headers:\n    Authorization:\n",
-        "types/veiculo.raml": "#%RAML 1.0 DataType\ntype: object\nproperties:\n  id: integer\n",
+        "types/produto.raml": "#%RAML 1.0 DataType\ntype: object\nproperties:\n  id: integer\n",
         "application.xml": MULE_BASE,
-        "services/lance.xml": '<?xml version="1.0"?>\n<mule>\n'
+        "services/pedido.xml": '<?xml version="1.0"?>\n<mule>\n'
         '    <sub-flow name="calcula-incremento">\n'
         '        <set-variable variableName="minimo" value="#[payload.valor * 1.05]"/>\n'
         "    </sub-flow>\n</mule>\n",
@@ -408,20 +408,20 @@ def test_projeto_inteiro_com_multiplos_arquivos_de_codigo(tres):
     # Eu mexo no RAML principal e num service.
     meus = dict(base_files)
     meus["api.raml"] = RAML_BASE.replace(
-        "      chassi:\n", "      renavam:\n        type: string\n      chassi:\n"
+        "      ean:\n", "      marca:\n        type: string\n      ean:\n"
     )
-    meus["services/lance.xml"] = base_files["services/lance.xml"].replace(
+    meus["services/pedido.xml"] = base_files["services/pedido.xml"].replace(
         "payload.valor * 1.05", "payload.valor * 1.10"
     )
     _escreve(tres["local"], meus)
 
     # Eles mexem no type, no application e trazem um arquivo novo.
     deles = dict(base_files)
-    deles["types/veiculo.raml"] = base_files["types/veiculo.raml"] + "  placa: string\n"
+    deles["types/produto.raml"] = base_files["types/produto.raml"] + "  sku: string\n"
     deles["application.xml"] = MULE_BASE.replace(
-        "</mule>", '    <flow name="delete-veiculo"/>\n</mule>'
+        "</mule>", '    <flow name="delete-produto"/>\n</mule>'
     )
-    deles["types/lance.raml"] = "#%RAML 1.0 DataType\ntype: object\n"
+    deles["types/pedido.raml"] = "#%RAML 1.0 DataType\ntype: object\n"
     _escreve(tres["novo"], deles)
 
     r = reconcile.reconciliar(tres["local"], tres["base"], tres["novo"], "1.0", "1.1")
@@ -431,11 +431,11 @@ def test_projeto_inteiro_com_multiplos_arquivos_de_codigo(tres):
         return (tres["local"] / rel).read_text(encoding="utf-8")
 
     assert r.limpo, f"conflitos: {[c.caminho for c in r.conflitos]}"
-    assert "renavam:" in ler("api.raml"), "minha edicao no RAML"
-    assert "1.10" in ler("services/lance.xml"), "minha edicao no service"
-    assert "placa: string" in ler("types/veiculo.raml"), "a edicao deles no type"
-    assert 'name="delete-veiculo"' in ler("application.xml"), "o flow novo deles"
-    assert (tres["local"] / "types" / "lance.raml").is_file(), "o arquivo novo deles"
+    assert "marca:" in ler("api.raml"), "minha edicao no RAML"
+    assert "1.10" in ler("services/pedido.xml"), "minha edicao no service"
+    assert "sku: string" in ler("types/produto.raml"), "a edicao deles no type"
+    assert 'name="delete-produto"' in ler("application.xml"), "o flow novo deles"
+    assert (tres["local"] / "types" / "pedido.raml").is_file(), "o arquivo novo deles"
 
 
 def test_nenhum_arquivo_de_codigo_fica_invalido(tres):
@@ -447,16 +447,16 @@ def test_nenhum_arquivo_de_codigo_fica_invalido(tres):
     from xml.etree import ElementTree
 
     meu = MULE_BASE.replace(
-        '        <flow-ref name="valida-lance"/>',
-        '        <flow-ref name="valida-lance"/>\n'
-        '        <logger level="DEBUG" message="lance validado"/>',
+        '        <flow-ref name="valida-pedido"/>',
+        '        <flow-ref name="valida-pedido"/>\n'
+        '        <logger level="DEBUG" message="pedido validado"/>',
     )
     novo = MULE_BASE.replace(
-        "    <sub-flow name=\"valida-lance\">",
+        "    <sub-flow name=\"valida-pedido\">",
         '    <sub-flow name="verifica-saldo">\n'
         '        <logger level="INFO" message="saldo ok"/>\n'
         "    </sub-flow>\n\n"
-        '    <sub-flow name="valida-lance">',
+        '    <sub-flow name="valida-pedido">',
     )
 
     r = _rec(tres, meu, novo, MULE_BASE, rel="application.xml")
@@ -467,8 +467,8 @@ def test_nenhum_arquivo_de_codigo_fica_invalido(tres):
     # Se o merge quebrou a arvore, isto levanta ParseError.
     raiz = ElementTree.fromstring(bruto)
     nomes = {e.get("name") for e in raiz.iter() if e.get("name")}
-    assert {"get-veiculos", "post-lances", "valida-lance", "verifica-saldo"} <= nomes
-    assert "lance validado" in bruto
+    assert {"get-produtos", "post-pedidos", "valida-pedido", "verifica-saldo"} <= nomes
+    assert "pedido validado" in bruto
 
 
 # --- Via git (o caminho do `pararepo api`) --------------------------------------
@@ -493,7 +493,7 @@ def test_scaffold_de_verdade_sobre_codigo_meu(tmp_path):
         local,
         {
             "src/main/mule/application.xml": MULE_BASE,
-            "src/main/mule/services/lance.xml": '<?xml version="1.0"?>\n<mule>\n'
+            "src/main/mule/services/pedido.xml": '<?xml version="1.0"?>\n<mule>\n'
             '    <sub-flow name="calc"/>\n</mule>\n',
         },
     )
@@ -510,18 +510,18 @@ def test_scaffold_de_verdade_sobre_codigo_meu(tmp_path):
             # O scaffold adiciona dois flows e um sub-flow no fim.
             "src/main/mule/application.xml": MULE_BASE.replace(
                 "</mule>",
-                '    <flow name="put-veiculos-id">\n'
+                '    <flow name="put-produtos-id">\n'
                 '        <http:listener config-ref="api-httpListenerConfig" '
-                'path="/veiculos/{id}"/>\n'
+                'path="/produtos/{id}"/>\n'
                 '        <logger level="INFO" message="gerado pelo scaffold"/>\n'
                 "    </flow>\n"
-                '    <flow name="delete-lances-id">\n'
+                '    <flow name="delete-pedidos-id">\n'
                 '        <http:listener config-ref="api-httpListenerConfig" '
-                'path="/lances/{id}"/>\n'
+                'path="/pedidos/{id}"/>\n'
                 "    </flow>\n"
                 "</mule>",
             ),
-            "src/main/mule/services/lance.xml": '<?xml version="1.0"?>\n<mule>\n'
+            "src/main/mule/services/pedido.xml": '<?xml version="1.0"?>\n<mule>\n'
             '    <sub-flow name="calc"/>\n</mule>\n',
         },
     )
@@ -541,6 +541,6 @@ def test_scaffold_de_verdade_sobre_codigo_meu(tmp_path):
 
     assert r.limpo, f"conflitos: {[c.caminho for c in r.conflitos]}"
     assert "ativo: true" in final, "minha edicao no DataWeave"
-    assert 'name="put-veiculos-id"' in final and 'name="delete-lances-id"' in final
+    assert 'name="put-produtos-id"' in final and 'name="delete-pedidos-id"' in final
     assert final.count("<flow ") == 4
     ElementTree.fromstring(final)  # tem de continuar valido

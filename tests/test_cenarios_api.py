@@ -38,7 +38,7 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def _application_xml(flows: int, *, marca: str = "") -> str:
-    """Um application.xml com muitos flows, como o real (139 flows no leilao)."""
+    """Um application.xml com muitos flows, como num projeto de producao."""
     corpo = "\n".join(
         f'  <flow name="get-item-{i}">\n'
         f'    <logger message="item {i}"/>\n'
@@ -53,11 +53,11 @@ def _application_xml(flows: int, *, marca: str = "") -> str:
 def projeto(tmp_path):
     """Um repo git com a API commitada, e uma copia representando o lado do Studio."""
     repo = tmp_path / "repo"
-    api = repo / "leilao-api" / "src" / "main" / "mule"
+    api = repo / "pedidos-api" / "src" / "main" / "mule"
     api.mkdir(parents=True)
     (api / "application.xml").write_text(_application_xml(40), encoding="utf-8")
     (api / "services").mkdir()
-    (api / "services" / "leilao.xml").write_text(
+    (api / "services" / "pedidos.xml").write_text(
         '<?xml version="1.0"?>\n<mule>\n  <sub-flow name="calcula"/>\n</mule>\n',
         encoding="utf-8",
     )
@@ -68,12 +68,12 @@ def projeto(tmp_path):
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "base")
 
-    studio = tmp_path / "studio" / "detran-leilao"
+    studio = tmp_path / "studio" / "studio-pedidos"
     studio.mkdir(parents=True)
     import shutil
 
-    shutil.copytree(repo / "leilao-api" / "src", studio / "src")
-    return {"repo": repo, "local": repo / "leilao-api", "studio": studio}
+    shutil.copytree(repo / "pedidos-api" / "src", studio / "src")
+    return {"repo": repo, "local": repo / "pedidos-api", "studio": studio}
 
 
 def _rec(projeto):
@@ -130,7 +130,7 @@ def test_scaffold_e_minha_edicao_em_pontos_distintos(projeto):
 
 def test_mesma_linha_nos_dois_lados_da_api_conflita(projeto):
     """Mesmo ponto, textos diferentes: nada e escrito, como no RAML."""
-    rel = "src/main/mule/services/leilao.xml"
+    rel = "src/main/mule/services/pedidos.xml"
     (projeto["local"] / rel).write_text(
         '<?xml version="1.0"?>\n<mule>\n  <sub-flow name="calcula-local"/>\n</mule>\n',
         encoding="utf-8",
@@ -150,7 +150,7 @@ def test_mesma_linha_nos_dois_lados_da_api_conflita(projeto):
 
 
 def test_muitos_arquivos_de_servico_mudando_de_uma_vez(projeto):
-    """O leilao tem a logica espalhada em varios services/*.xml. Volume de arquivos."""
+    """Um projeto real espalha a logica em varios services/*.xml. Volume de arquivos."""
     for i in range(15):
         (projeto["studio"] / "src" / "main" / "mule" / "services" / f"s{i}.xml").write_text(
             f'<?xml version="1.0"?>\n<mule>\n  <sub-flow name="s{i}"/>\n</mule>\n',
@@ -200,7 +200,7 @@ def test_arquivo_nao_versionado_divergente_vira_conflito(projeto):
 
 def test_arquivo_apagado_no_studio_permanece_aqui(projeto):
     """O Studio nao tem mais o arquivo. Nao apagamos o do repo por conta propria."""
-    rel = "src/main/mule/services/leilao.xml"
+    rel = "src/main/mule/services/pedidos.xml"
     (projeto["studio"] / rel).unlink()
 
     r = _rec(projeto)
@@ -222,7 +222,7 @@ def test_ciclo_completo_ida_e_volta_duas_vezes(projeto, tmp_path):
     cfg = BridgeConfig(
         work_root=projeto["repo"],
         studio_root=tmp_path / "studio",
-        api=ProjectPair("leilao-api", "detran-leilao"),
+        api=ProjectPair("pedidos-api", "studio-pedidos"),
         raml=None,
     )
     rel = "src/main/mule/application.xml"
@@ -287,7 +287,7 @@ def test_pararepo_duas_vezes_seguidas_e_estavel(projeto):
 
 def test_dois_commits_com_edicao_local_no_mesmo_lote(projeto):
     """O scaffold entra num commit; a minha edicao fica no working tree para eu revisar."""
-    rel_meu = "src/main/mule/services/leilao.xml"
+    rel_meu = "src/main/mule/services/pedidos.xml"
     (projeto["local"] / rel_meu).write_text(
         '<?xml version="1.0"?>\n<mule>\n  <sub-flow name="calcula"/>\n  <!-- meu -->\n</mule>\n',
         encoding="utf-8",
@@ -298,7 +298,7 @@ def test_dois_commits_com_edicao_local_no_mesmo_lote(projeto):
 
     r = _rec(projeto)
     escritos, commitou = reconcile.aplicar_em_dois_commits(
-        r, projeto["local"], projeto["repo"], "leilao-api", "chore: scaffold do Studio"
+        r, projeto["local"], projeto["repo"], "pedidos-api", "chore: scaffold do Studio"
     )
 
     assert commitou and escritos >= 1
@@ -306,5 +306,5 @@ def test_dois_commits_com_edicao_local_no_mesmo_lote(projeto):
     assert "scaffold do Studio" in log
 
     sujo = _git(projeto["repo"], "status", "--porcelain").stdout
-    assert "leilao.xml" in sujo, "a minha edicao tem de ficar visivel, sem commit"
+    assert "pedidos.xml" in sujo, "a minha edicao tem de ficar visivel, sem commit"
     assert "gerado.xml" not in sujo, "o que veio de fora ja foi commitado"

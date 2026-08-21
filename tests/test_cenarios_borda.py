@@ -25,7 +25,7 @@ POM_MIN = (
 
 #: Uma base com pontos de insercao separados, para exercitar encoding sem cair no
 #: conflito de anexacao simultanea (que ja e coberto em test_cenarios_conflito).
-BASE_ACENTOS = "﻿#%RAML 1.0\ntitle: Leilão\nversion: v1\ntypes:\n  Meu:\n  Deles:\n  Fim:\n"
+BASE_ACENTOS = "﻿#%RAML 1.0\ntitle: Pedidos\nversion: v1\ntypes:\n  Meu:\n  Deles:\n  Fim:\n"
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def test_bom_e_acentos_sobrevivem_a_reconciliacao(tres):
 
     assert r.limpo
     assert final.startswith("﻿"), "o BOM foi comido"
-    assert "Leilão" in final, "acento do titulo corrompido"
+    assert "Pedidos" in final, "acento do titulo corrompido"
     assert "coração" in final, "acento da minha edicao corrompido"
     assert "Notificação" in final, "acento da versao nova corrompido"
 

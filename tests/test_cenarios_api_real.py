@@ -1,19 +1,20 @@
-"""Reconciliacao da API contra o projeto Mule real, quando ele existe nesta maquina.
+"""Reconciliacao da API contra um projeto Mule de verdade, apontado por variavel de ambiente.
 
-O `application.xml` do leilao tem ~1500 linhas e 139 flows, e a logica se espalha por 27
-arquivos em `src/main/mule/`. Nenhum fixture de teste reproduz isso: um arquivo de tres
-linhas junta facil, um de mil e onde aparece o problema de verdade.
+Um `application.xml` de producao passa de mil linhas e centenas de flows, e a logica se
+espalha por dezenas de arquivos em `src/main/mule/`. Nenhum fixture reproduz isso: um
+arquivo de tres linhas junta facil, um de mil e onde aparece o problema de verdade.
 
 O cenario montado aqui e o de risco real do `pararepo api`: o Studio roda o scaffold e
 acrescenta flows, e **eu editei o mesmo arquivo** na mesma rodada. E onde uma edicao local
 poderia desaparecer em silencio.
 
-Nada e escrito no projeto do usuario: tudo acontece numa copia em pasta temporaria, com um
-git proprio. Os testes sao pulados quando o projeto nao esta presente.
+Nada e escrito no projeto apontado: tudo acontece numa copia em pasta temporaria, com um
+git proprio. Os testes sao pulados quando a variavel nao esta definida.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -22,15 +23,20 @@ import pytest
 
 from mule_bridge import reconcile
 
-#: Projeto real usado como massa de teste. Ajustar aqui adapta o arquivo a outra maquina.
-REPO_REAL = Path("CAMINHO-REMOVIDO")
-STUDIO_REAL = Path("CAMINHO-REMOVIDO")
+#: Projeto Mule a usar como massa, vindo do ambiente — nunca fixo no codigo, que e publico:
+#:
+#:     PONTE_TESTE_API=/caminho/para/uma-api  pytest
+#:
+#: Sem a variavel os testes deste arquivo sao pulados. Caminhos de maquina nao tem por que
+#: estar num repositorio aberto, e um caminho fixo so funcionaria numa maquina de todo jeito.
+_API = os.environ.get("PONTE_TESTE_API", "")
+REPO_REAL = Path(_API) if _API else None
 
 IGNORAR = {".git", "target", ".mule", ".settings", "pom.xml", ".classpath", ".project"}
 
 pytestmark = pytest.mark.skipif(
-    not (REPO_REAL / "src" / "main" / "mule").is_dir(),
-    reason="projeto Mule real nao esta presente nesta maquina",
+    REPO_REAL is None or not (REPO_REAL / "src" / "main" / "mule").is_dir(),
+    reason="defina PONTE_TESTE_API apontando para um projeto Mule (pasta com src/main/mule)",
 )
 
 
@@ -131,7 +137,7 @@ def test_nenhum_arquivo_do_projeto_fica_com_marcador(copia):
 
 
 def test_scaffold_em_varios_arquivos_de_servico(copia):
-    """O leilao espalha a logica em services/*.xml — o scaffold mexe em varios de uma vez."""
+    """Um projeto Mule espalha a logica em services/*.xml — o scaffold mexe em varios."""
     servicos = sorted((copia["studio"] / "src" / "main" / "mule").rglob("*.xml"))[:6]
     assert len(servicos) >= 3, "esperado varios arquivos de logica"
 

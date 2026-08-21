@@ -24,10 +24,10 @@ from mule_bridge import reconcile
 from mule_bridge.reconcile import ReconcileError
 
 BASE = """#%RAML 1.0
-title: Leilao
+title: Pedidos
 version: v1
 types:
-  Leilao:
+  Pedido:
     properties:
       id: integer
       placa:
@@ -54,7 +54,7 @@ def _escreve(pasta: Path, arquivos: dict[str, str]) -> Path:
 @pytest.fixture
 def dirs(tmp_path):
     return {
-        "local": tmp_path / "leilao-raml",
+        "local": tmp_path / "pedidos-raml",
         "base": tmp_path / "base",
         "novo": tmp_path / "novo",
     }
@@ -285,9 +285,9 @@ def test_renomear_do_lado_do_exchange_e_visto_como_apagar_e_criar(dirs):
     O resultado pratico: o arquivo novo entra e o antigo permanece na pasta local. Nao ha
     perda de conteudo, mas sobra um arquivo duplicado que o usuario tem de remover.
     """
-    _escreve(dirs["local"], {"antigo.raml": "titulo: leilao\n"})
-    _escreve(dirs["base"], {"antigo.raml": "titulo: leilao\n"})
-    _escreve(dirs["novo"], {"novo-nome.raml": "titulo: leilao\n"})
+    _escreve(dirs["local"], {"antigo.raml": "titulo: pedidos\n"})
+    _escreve(dirs["base"], {"antigo.raml": "titulo: pedidos\n"})
+    _escreve(dirs["novo"], {"novo-nome.raml": "titulo: pedidos\n"})
 
     r = reconcile.reconciliar(dirs["local"], dirs["base"], dirs["novo"], "1", "2")
 
@@ -296,7 +296,7 @@ def test_renomear_do_lado_do_exchange_e_visto_como_apagar_e_criar(dirs):
 
 
 def test_pasta_nova_inteira_do_exchange(dirs):
-    """O caso real do leilao: `domain/captcha.raml` existindo so na versao nova."""
+    """O caso visto em producao: `domain/captcha.raml` existindo so na versao nova."""
     _escreve(dirs["local"], {"api.raml": BASE})
     _escreve(dirs["base"], {"api.raml": BASE})
     _escreve(
@@ -318,7 +318,7 @@ def test_adicoes_grandes_em_pontos_distintos_somam(dirs):
     As adicoes vao para pontos diferentes do arquivo (eu num type, eles noutro), que e o
     caso comum de uma spec crescendo dos dois lados.
     """
-    base = "#%RAML 1.0\ntitle: Leilao\ntypes:\n  Meus:\n  Deles:\n  Fim:\n"
+    base = "#%RAML 1.0\ntitle: Pedidos\ntypes:\n  Meus:\n  Deles:\n  Fim:\n"
     meu = base.replace(
         "  Meus:\n", "  Meus:\n" + "".join(f"    m{i}: string\n" for i in range(50))
     )
@@ -346,7 +346,7 @@ def test_adicoes_grandes_em_pontos_distintos_somam(dirs):
 
 def test_os_dois_anexam_no_fim_pede_decisao(dirs):
     """Sem base para ordenar, "primeiro o meu" ou "primeiro o deles" e escolha humana."""
-    base = "#%RAML 1.0\ntitle: Leilao\ntypes:\n"
+    base = "#%RAML 1.0\ntitle: Pedidos\ntypes:\n"
     meu = base + "  Meu:\n    type: object\n"
     novo = base + "  Deles:\n    type: object\n"
 
@@ -359,7 +359,7 @@ def test_os_dois_anexam_no_fim_pede_decisao(dirs):
 
 def test_anexacao_simultanea_resolvida_somando_os_dois(dirs):
     """A resolucao natural desse conflito: manter os dois, um depois do outro."""
-    base = "#%RAML 1.0\ntitle: Leilao\ntypes:\n"
+    base = "#%RAML 1.0\ntitle: Pedidos\ntypes:\n"
     meu = base + "  Meu:\n    type: object\n"
     novo = base + "  Deles:\n    type: object\n"
     r = _montar(dirs, meu, novo, base=base)
@@ -374,7 +374,7 @@ def test_anexacao_simultanea_resolvida_somando_os_dois(dirs):
 
 def test_eu_anexo_no_fim_eles_editam_o_meio_junta(dirs):
     """O contraste que fecha o quadro: se as mudancas nao se tocam, junta sozinho."""
-    base = "#%RAML 1.0\ntitle: Leilao\nversion: v1\ntypes:\n  A:\n  B:\n  C:\n"
+    base = "#%RAML 1.0\ntitle: Pedidos\nversion: v1\ntypes:\n  A:\n  B:\n  C:\n"
     meu = base + "  MeuNovo:\n    type: object\n"
     novo = base.replace("version: v1", "version: v2")
 

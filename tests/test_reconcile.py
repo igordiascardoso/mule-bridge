@@ -11,9 +11,9 @@ from mule_bridge import reconcile
 from mule_bridge.reconcile import ReconcileError
 
 BASE = """#%RAML 1.0
-title: Leilao
+title: Pedidos
 types:
-  Leilao:
+  Pedido:
     properties:
       id: integer
       placa:
@@ -34,7 +34,7 @@ def _escreve(pasta: Path, arquivos: dict[str, str]) -> Path:
 @pytest.fixture
 def dirs(tmp_path):
     return {
-        "local": tmp_path / "leilao-raml",
+        "local": tmp_path / "pedidos-raml",
         "base": tmp_path / "base",
         "novo": tmp_path / "novo",
     }
@@ -49,7 +49,7 @@ def _reconciliar(dirs):
 
 def test_adicoes_em_pontos_diferentes_juntam_sem_conflito(dirs):
     meu = BASE + "  Lance:\n    properties:\n      valor: number\n"
-    novo = "#%RAML 1.0\ntitle: Leilao (Exchange)\n" + BASE.split("\n", 2)[2]
+    novo = "#%RAML 1.0\ntitle: Pedidos (Exchange)\n" + BASE.split("\n", 2)[2]
 
     _escreve(dirs["local"], {"api.raml": meu})
     _escreve(dirs["base"], {"api.raml": BASE})
@@ -60,7 +60,7 @@ def test_adicoes_em_pontos_diferentes_juntam_sem_conflito(dirs):
     assert r.limpo, [c.caminho for c in r.conflitos]
     final = r.resultado["api.raml"]
     assert "Lance:" in final, "a edicao local tem de sobreviver"
-    assert "Leilao (Exchange)" in final, "a mudanca de fora tem de entrar"
+    assert "Pedidos (Exchange)" in final, "a mudanca de fora tem de entrar"
 
 
 def test_endpoint_novo_do_exchange_entra(dirs):
@@ -188,14 +188,14 @@ def _zip_raml(destino: Path, arquivos: dict[str, str]) -> Path:
 
 def test_preparar_le_as_duas_versoes_do_cache(tmp_path):
     m2 = tmp_path / "m2"
-    _zip_raml(reconcile.caminho_no_cache("g", "leilao", "1.1.54", m2), {"api.raml": BASE})
+    _zip_raml(reconcile.caminho_no_cache("g", "pedidos", "1.1.54", m2), {"api.raml": BASE})
     _zip_raml(
-        reconcile.caminho_no_cache("g", "leilao", "1.1.55", m2),
+        reconcile.caminho_no_cache("g", "pedidos", "1.1.55", m2),
         {"api.raml": BASE, "captcha.raml": "#%RAML 1.0\ntitle: Captcha\n"},
     )
-    local = _escreve(tmp_path / "leilao-raml", {"api.raml": BASE})
+    local = _escreve(tmp_path / "pedidos-raml", {"api.raml": BASE})
 
-    r = reconcile.preparar(local, "g", "leilao", "1.1.54", "1.1.55", m2=m2)
+    r = reconcile.preparar(local, "g", "pedidos", "1.1.54", "1.1.55", m2=m2)
 
     assert r.limpo
     assert "captcha.raml" in r.so_deles
@@ -203,18 +203,18 @@ def test_preparar_le_as_duas_versoes_do_cache(tmp_path):
 
 def test_versao_ausente_no_cache_orienta(tmp_path):
     m2 = tmp_path / "m2"
-    local = _escreve(tmp_path / "leilao-raml", {"api.raml": BASE})
+    local = _escreve(tmp_path / "pedidos-raml", {"api.raml": BASE})
 
     with pytest.raises(ReconcileError, match="Studio"):
-        reconcile.preparar(local, "g", "leilao", "1.1.54", "1.1.99", m2=m2)
+        reconcile.preparar(local, "g", "pedidos", "1.1.54", "1.1.99", m2=m2)
 
 
 def test_versoes_ordenadas_numericamente(tmp_path):
     m2 = tmp_path / "m2"
     for v in ("1.1.9", "1.1.10", "1.1.54"):
-        _zip_raml(reconcile.caminho_no_cache("g", "leilao", v, m2), {"api.raml": BASE})
+        _zip_raml(reconcile.caminho_no_cache("g", "pedidos", v, m2), {"api.raml": BASE})
 
-    assert reconcile.versoes_no_cache("g", "leilao", m2) == ["1.1.9", "1.1.10", "1.1.54"]
+    assert reconcile.versoes_no_cache("g", "pedidos", m2) == ["1.1.9", "1.1.10", "1.1.54"]
 
 
 def test_mais_novas_que_ignora_versoes_antigas():

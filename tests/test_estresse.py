@@ -40,15 +40,15 @@ _LoaderRaml.add_multi_constructor("!", lambda loader, suffix, node: None)
 EDICOES_XML: list[tuple[str, str]] = [
     (
         "    situacao: v.situacao\n",
-        "    situacao: v.situacao,\n    renavam: v.renavam\n",
+        "    situacao: v.situacao,\n    marca: v.marca\n",
     ),
     (
-        "<db:sql>SELECT id, placa, chassi, situacao FROM veiculo</db:sql>",
-        "<db:sql>SELECT id, placa FROM veiculo WHERE ativo = true</db:sql>",
+        "<db:sql>SELECT id, sku, ean, situacao FROM produto</db:sql>",
+        "<db:sql>SELECT id, sku FROM produto WHERE ativo = true</db:sql>",
     ),
     (
-        '<flow-ref name="valida-lance"/>',
-        '<flow-ref name="valida-lance"/>\n        <logger message="validado"/>',
+        '<flow-ref name="valida-pedido"/>',
+        '<flow-ref name="valida-pedido"/>\n        <logger message="validado"/>',
     ),
     ("</mule>", '    <flow name="flow-novo-a"/>\n</mule>'),
     (
@@ -57,7 +57,7 @@ EDICOES_XML: list[tuple[str, str]] = [
         '                <raise-error type="APP:DB_FORA"/>',
     ),
     ('type="DB:CONNECTIVITY"', 'type="DB:CONNECTIVITY, DB:QUERY_EXECUTION"'),
-    ('path="/veiculos"', 'path="/api/v2/veiculos"'),
+    ('path="/produtos"', 'path="/api/v2/produtos"'),
     (
         '<when expression="#[payload.valor &lt;= 0]">',
         '<when expression="#[payload.valor &lt;= 0 or payload.valor &gt; 9999]">',
@@ -66,29 +66,29 @@ EDICOES_XML: list[tuple[str, str]] = [
 
 #: O mesmo para o RAML.
 EDICOES_RAML: list[tuple[str, str]] = [
-    ("      chassi:\n", "      renavam:\n        type: string\n      chassi:\n"),
+    ("      ean:\n", "      marca:\n        type: string\n      ean:\n"),
     (
-        "        enum: [DISPONIVEL, ARREMATADO, RETIRADO]",
-        "        enum: [DISPONIVEL, ARREMATADO, RETIRADO, CANCELADO]",
+        "        enum: [ATIVO, ESGOTADO, DESCONTINUADO]",
+        "        enum: [DISPONIVEL, ARREMATADO, DESCONTINUADO, DEVOLVIDO]",
     ),
     (
-        "  Lance:\n",
-        "  Documento:\n    type: object\n    properties:\n      url: string\n  Lance:\n",
+        "  Pedido:\n",
+        "  Documento:\n    type: object\n    properties:\n      url: string\n  Pedido:\n",
     ),
     ("        minLength: 17\n", "        minLength: 17\n        required: true\n"),
     ("      dataHora: datetime", "      dataHora: datetime\n      origem: string"),
     (
-        "        404:\n          description: Veiculo nao encontrado",
+        "        404:\n          description: Produto nao encontrado",
         "        403:\n          description: Sem permissao\n"
-        "        404:\n          description: Veiculo nao encontrado",
+        "        404:\n          description: Produto nao encontrado",
     ),
     (
         "      tamanho:\n        type: integer\n        default: 20",
         "      tamanho:\n        type: integer\n        default: 50\n        maximum: 100",
     ),
     (
-        "description: Placa no padrao Mercosul",
-        "description: Placa Mercosul (obrigatoria)",
+        "description: Codigo interno do produto",
+        "description: Codigo interno (obrigatorio)",
     ),
 ]
 
@@ -265,13 +265,13 @@ def test_cascata_no_raml_preserva_todas_as_minhas_edicoes(tmp_path):
         # Eles acrescentam um type novo no fim; eu, uma property no Veiculo.
         (novo / "api.raml").write_text(
             atual.replace(
-                "  Lance:\n", f"  TypeDeles{passo}:\n    type: object\n  Lance:\n"
+                "  Pedido:\n", f"  TypeDeles{passo}:\n    type: object\n  Pedido:\n"
             ),
             encoding="utf-8",
         )
         alvo.write_text(
             atual.replace(
-                "      chassi:\n", f"      meuCampo{passo}: string\n      chassi:\n"
+                "      ean:\n", f"      meuCampo{passo}: string\n      ean:\n"
             ),
             encoding="utf-8",
         )
@@ -301,7 +301,7 @@ def test_cinquenta_arquivos_de_codigo_de_uma_vez(tmp_path):
         d.mkdir()
 
     for i in range(50):
-        conteudo = MULE_BASE.replace("get-veiculos", f"flow-{i}")
+        conteudo = MULE_BASE.replace("get-produtos", f"flow-{i}")
         (base / f"s{i}.xml").write_text(conteudo, encoding="utf-8")
         meu = (
             conteudo.replace('message="banco indisponivel"', f'message="meu {i}"')
