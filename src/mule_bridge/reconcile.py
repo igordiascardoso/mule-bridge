@@ -426,6 +426,25 @@ def aplicar_em_dois_commits(
     return escritos, commitou
 
 
+def resolucoes_do_disco(r: Reconciliacao, pasta_local: Path) -> dict[str, str]:
+    """Toma o que está na pasta como a resolução dos conflitos.
+
+    Existe para o usuário sair de um impasse real: depois de editar o arquivo à mão
+    combinando as duas versões, a reconciliação seguinte ainda acusa conflito — a base
+    continua sendo a versão antiga, então o texto combinado segue divergindo dos dois
+    lados. Sem uma forma de dizer "já resolvi", não há como avançar: rodar de novo repete
+    o mesmo conflito para sempre.
+
+    Só usar quando o usuário afirmar explicitamente que resolveu (`--resolvido`): aceitar
+    o disco por conta própria seria o mesmo que ignorar o conflito.
+    """
+    return {
+        c.caminho: _ler(pasta_local / c.caminho)
+        for c in r.conflitos
+        if (pasta_local / c.caminho).is_file()
+    }
+
+
 def _gravar(conteudos: dict[str, str], pasta_local: Path) -> int:
     """Escreve os arquivos que de fato mudaram; devolve quantos."""
     escritos = 0

@@ -10,10 +10,30 @@ from dataclasses import dataclass
 from pathlib import Path
 
 #: Caminhos default do workspace do Anypoint Studio, testados em ordem.
+#:
+#: A lista cobre os locais que a instalação padrão usa, mas não substitui a descoberta
+#: real: quem instalou o Studio noutro drive, ou escolheu um workspace na hora de abrir,
+#: não aparece aqui. Para esses, `workspaces_recentes_do_studio` lê o que o próprio
+#: Studio registrou, e no fim o usuário sempre pode digitar o caminho.
 STUDIO_WORKSPACE_HINTS: tuple[str, ...] = (
     "~/AnypointStudio/studio-workspace",
     "~/AnypointStudio-workspace",
     "~/AnypointStudio/workspace",
+    "~/AnypointStudio",
+    "~/Documents/AnypointStudio/studio-workspace",
+    "~/Documents/AnypointStudio-workspace",
+    "~/mule-workspace",
+    "~/workspace",
+)
+
+#: Pastas onde procurar por workspaces, um nível abaixo. Cobre o caso de o Studio ter sido
+#: instalado fora de `~` — comum quando o disco do usuário é pequeno e há um `D:` maior.
+RAIZES_DE_BUSCA: tuple[str, ...] = (
+    "~",
+    "~/Documents",
+    "C:/",
+    "D:/",
+    "E:/",
 )
 
 
@@ -61,9 +81,68 @@ def find_projects(root: Path) -> list[MuleProject]:
     return found
 
 
+def parece_workspace(path: Path) -> bool:
+    """Reconhece um workspace do Studio pela estrutura, não pelo nome.
+
+    O `.metadata` é criado pelo Eclipse na primeira abertura, então está em todo workspace
+    de verdade e em nenhuma pasta comum. Um diretório que só contém projetos Mule também
+    conta: quem move o workspace de lugar às vezes deixa o `.metadata` atrás.
+    """
+    if not path.is_dir():
+        return False
+    if (path / ".metadata").is_dir():
+        return True
+    try:
+        return any(is_mule_api(c) for c in path.iterdir() if c.is_dir())
+    except OSError:
+        # Sem permissão de leitura, ou drive de rede que caiu: não é candidato.
+        return False
+
+
 def find_studio_workspaces() -> list[Path]:
-    """Workspaces do Studio prováveis, nos caminhos default da máquina."""
-    return [p for h in STUDIO_WORKSPACE_HINTS if (p := Path(h).expanduser()).is_dir()]
+    """Workspaces do Studio prováveis nesta máquina, sem repetir caminho.
+
+    Procura em três frentes, da mais provável para a mais custosa: os caminhos padrão da
+    instalação, as pastas `AnypointStudio*` um nível abaixo das raízes conhecidas, e os
+    diretórios que têm cara de workspace nessas mesmas raízes.
+
+    Nunca é exaustivo — varrer o disco inteiro seria lento e ainda assim falharia num
+    caminho de rede. É por isso que o `init` sempre oferece digitar o caminho à mão.
+    """
+    achados: list[Path] = []
+
+    def somar(p: Path) -> None:
+        if p.is_dir() and p not in achados:
+            achados.append(p)
+
+    for hint in STUDIO_WORKSPACE_HINTS:
+        somar(Path(hint).expanduser())
+
+    for raiz_bruta in RAIZES_DE_BUSCA:
+        raiz = Path(raiz_bruta).expanduser()
+        if not raiz.is_dir():
+            continue
+        try:
+            filhos = sorted(raiz.iterdir())
+        except OSError:
+            continue
+
+        for filho in filhos:
+            if not filho.is_dir() or filho.name.startswith("$"):
+                continue
+            nome = filho.name.lower()
+            if "anypoint" in nome or "mulesoft" in nome:
+                somar(filho)
+                try:
+                    for neto in sorted(filho.iterdir()):
+                        if neto.is_dir() and parece_workspace(neto):
+                            somar(neto)
+                except OSError:
+                    continue
+            elif "workspace" in nome and parece_workspace(filho):
+                somar(filho)
+
+    return [p for p in achados if parece_workspace(p)]
 
 
 def guess_raml_sibling(api: MuleProject, candidates: list[MuleProject]) -> MuleProject | None:

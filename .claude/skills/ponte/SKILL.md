@@ -120,7 +120,15 @@ que voce entra. Para cada conflito:
 4. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
    combinacao. Mostre os dois lados e pergunte qual vale.
 5. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
-   rode `ponte pararepo raml --aplicar` de novo.
+   rode `ponte pararepo raml --resolvido --aplicar`.
+
+O `--resolvido` e obrigatorio nesse segundo passo: sem ele o comando recusa de novo, porque
+a base continua sendo a versao antiga e o texto combinado ainda diverge dos dois lados. A
+flag diz "ja combinei, aceite o que esta na pasta" — entao **so use depois de o usuario
+aprovar a combinacao**, nunca para contornar um conflito que voce nao resolveu.
+
+Ao final, lembre o usuario de apontar o `pom.xml` para a versao nova: e isso que encerra o
+aviso de conflito nas execucoes seguintes.
 
 **Nunca** escolha um lado por conta propria nem descarte a edicao do usuario para "resolver
 logo". Uma edicao perdida em silencio e o pior resultado possivel aqui.

@@ -326,3 +326,84 @@ def test_ciclo_completo_pela_cli(projeto):
     pom_repo = (projeto["work"] / "pedidos-api" / "pom.xml").read_text(encoding="utf-8")
     assert "systemPath" not in pom_repo, "o ciclo inteiro nao pode sujar o pom do repo"
     assert pomrewrite.has_local_pointer(projeto["studio"] / "studio-pedidos" / "pom.xml")
+
+
+# --- Saida do impasse: --resolvido ----------------------------------------------
+
+
+def test_conflito_ensina_a_flag_de_saida(projeto):
+    """A mensagem tem de dizer COMO sair, nao so que houve conflito.
+
+    Antes ela mandava "resolva e rode de novo" — mas rodar de novo repetia o mesmo
+    conflito, porque a base continua sendo a versao antiga e o texto combinado segue
+    divergindo dos dois lados. O usuario ficava sem saida.
+    """
+    caminho = projeto["raml"] / "api.raml"
+    caminho.write_text(
+        BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n"), encoding="utf-8"
+    )
+
+    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
+
+    assert "--resolvido" in r.output, "a saida tem de ensinar a flag"
+
+
+def test_resolvido_aceita_o_que_esta_no_disco(projeto):
+    """Depois de combinar as duas versoes na mao, `--resolvido` destrava a aplicacao."""
+    caminho = projeto["raml"] / "api.raml"
+    combinado = BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n    novo: string\n")
+    caminho.write_text(combinado, encoding="utf-8")
+
+    r = _rodar(projeto, "pararepo", "raml", "--resolvido", "--aplicar")
+
+    assert r.exit_code == 0, r.output
+    final = caminho.read_text(encoding="utf-8")
+    assert "meu: string" in final, "a minha intencao ficou"
+    assert "novo: string" in final, "a deles tambem"
+    assert "<<<<<<<" not in final
+
+
+def test_resolvido_nao_e_preciso_quando_nao_ha_conflito(projeto):
+    """A flag e inerte no caminho limpo: nao muda o resultado de um merge sem conflito."""
+    r = _rodar(projeto, "pararepo", "raml", "--resolvido", "--aplicar")
+
+    assert r.exit_code == 0, r.output
+    assert (projeto["raml"] / "domain" / "captcha.raml").is_file()
+
+
+def test_sem_resolvido_o_conflito_nao_escreve(projeto):
+    """A flag e a unica porta: sem ela, o comportamento antigo continua valendo."""
+    caminho = projeto["raml"] / "api.raml"
+    caminho.write_text(
+        BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n"), encoding="utf-8"
+    )
+    antes = caminho.read_text(encoding="utf-8")
+
+    r = _rodar(projeto, "pararepo", "raml", "--aplicar")
+
+    assert r.exit_code == 1
+    assert caminho.read_text(encoding="utf-8") == antes
+
+
+def test_resolvido_na_api_tambem(projeto):
+    """O mesmo impasse existe do lado da API, com a base vindo do git."""
+    rel = "src/main/mule/application.xml"
+    (projeto["work"] / "pedidos-api" / rel).write_text(
+        "<mule>\n  <flow name='meu'/>\n</mule>\n", encoding="utf-8"
+    )
+    (projeto["studio"] / "studio-pedidos" / rel).write_text(
+        "<mule>\n  <flow name='deles'/>\n</mule>\n", encoding="utf-8"
+    )
+
+    sem_flag = _rodar(projeto, "pararepo", "api", "--aplicar")
+    assert sem_flag.exit_code == 1
+    assert "--resolvido" in sem_flag.output
+
+    combinado = "<mule>\n  <flow name='meu'/>\n  <flow name='deles'/>\n</mule>\n"
+    (projeto["work"] / "pedidos-api" / rel).write_text(combinado, encoding="utf-8")
+
+    com_flag = _rodar(projeto, "pararepo", "api", "--resolvido", "--aplicar")
+
+    assert com_flag.exit_code == 0, com_flag.output
+    final = (projeto["work"] / "pedidos-api" / rel).read_text(encoding="utf-8")
+    assert "meu" in final and "deles" in final

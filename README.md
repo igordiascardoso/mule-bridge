@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-138%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-148%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -141,29 +141,37 @@ cd c:\projetos\minha-api   # a raiz, onde ficam a pasta da API e a do RAML
 ponte init                 # pareia este repositório com um projeto do Studio
 ```
 
-O `init` varre os dois lados e lista o que encontrou. Onde há mais de um candidato, ele
-pede que você escolha pelo número; onde há um só, resolve e segue — perguntar o que não
-tem alternativa só faria você digitar de novo:
+O `init` varre os dois lados, lista o que encontrou e **pergunta cada escolha** — mesmo
+quando há um candidato só. O pareamento é seu: uma pasta errada aqui só aparece muito
+depois, quando um comando copia para o lugar indevido.
 
 ```console
 $ ponte init
 
-Projeto de API nesta pasta de trabalho:
+Qual é a API que você edita aqui?  (c:\projetos\minha-api)
   1. pedidos-api
-
-Pasta do RAML correspondente:
-  1. pedidos-raml  (sugerido)
-  2. nenhuma — não sincronizar RAML
 Escolha [1]:
 
-Workspace do Anypoint Studio:
-  1. C:\Users\voce\AnypointStudio\studio-workspace
+E o RAML dessa API, qual é?
+  1. pedidos-raml  (sugerido)
+  2. nenhuma — não sincronizar o RAML
+Escolha [1]:
 
-Projeto no workspace correspondente a pedidos-api:
+Onde fica o workspace do Anypoint Studio?
+  1. C:\Users\voce\AnypointStudio\studio-workspace
+  2. outro caminho — eu digito
+Escolha [1]:
+
+No Studio, qual projeto é o seu pedidos-api?
   1. minha-api  [api]
+Escolha [1]:
 
 Config gravada em c:\projetos\minha-api\.mule-bridge.toml
 ```
+
+**Workspace em outro lugar?** A última opção é sempre digitar o caminho. Se a busca não
+achar nada — Studio instalado noutro drive, workspace numa pasta de rede — ele pede o
+caminho direto. No Studio, ele aparece em *File → Switch Workspace*.
 
 O pareamento fica em `.mule-bridge.toml`, na raiz do repositório — o `init` roda uma vez só.
 
@@ -373,6 +381,17 @@ quer, e ela é sua.
 O mesmo vale para `pararepo api`, que usa o último commit do repositório como base: o que
 você mudou desde ele é seu, o que aparece diferente do lado do Studio veio de lá.
 
+**Resolvendo um conflito.** Edite o arquivo combinando as duas versões e rode de novo com
+`--resolvido --aplicar` — isso diz "já combinei, aceite o que está na pasta":
+
+```bash
+ponte pararepo raml --resolvido --aplicar
+```
+
+Sem essa flag o comando não aplicaria: para ele, o texto combinado ainda divergia dos dois
+lados, e ele repetiria o mesmo conflito para sempre. Depois de aplicar, aponte o `pom.xml`
+para a versão nova — é isso que fecha o ciclo e encerra o aviso.
+
 **O que vem de fora é commitado à parte.** Ao aplicar, os arquivos que chegaram do
 Exchange sem cruzar com edição sua vão para um commit próprio
 (`chore(raml): especificacao leilao 1.1.55`). O que sobra no `git status` é o seu trabalho
@@ -431,7 +450,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 138 testes
+pytest          # 148 testes
 ruff check .    # lint
 ```
 

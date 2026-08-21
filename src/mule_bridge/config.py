@@ -31,7 +31,13 @@ class ProjectPair:
     """Um par sincronizável: uma pasta na origem, a correspondente no destino."""
 
     work: str
-    studio: str
+    #: Pasta correspondente no workspace, ou None quando não existe lá.
+    #:
+    #: `None` é o caso normal do RAML: o Studio o consome como dependência do Exchange,
+    #: sem pasta própria. A pasta local é guardada de todo modo — o `pararepo raml` lê do
+    #: cache do Maven, não do Studio, e precisa saber onde ela fica. Mas copiá-la para o
+    #: workspace criaria uma pasta que ninguém lê, e é isso que o `None` evita.
+    studio: str | None
 
 
 @dataclass
@@ -47,8 +53,12 @@ class BridgeConfig:
 
     @property
     def pairs(self) -> list[ProjectPair]:
-        """Pares a sincronizar; o RAML entra junto por ser pasta irmã da API."""
-        return [p for p in (self.api, self.raml) if p is not None]
+        """Pares que dá para copiar; o RAML entra junto por ser pasta irmã da API.
+
+        Um par sem pasta no workspace fica de fora: não há destino para onde copiar, e
+        inventar um criaria no workspace uma pasta que o Studio não lê.
+        """
+        return [p for p in (self.api, self.raml) if p is not None and p.studio is not None]
 
 
 def config_path(work_root: Path) -> Path:
@@ -75,7 +85,11 @@ def load(work_root: Path) -> BridgeConfig:
 
     raml = None
     if "raml" in doc:
-        raml = ProjectPair(str(doc["raml"]["work"]), str(doc["raml"]["studio"]))
+        # `studio` ausente (ou a string "nenhuma", de configs antigas) significa que a
+        # pasta so existe aqui — ver ProjectPair.studio.
+        alvo = doc["raml"].get("studio")
+        alvo = None if alvo is None or str(alvo) == "nenhuma" else str(alvo)
+        raml = ProjectPair(str(doc["raml"]["work"]), alvo)
 
     excludes = [str(x) for x in doc.get("excludes", list(DEFAULT_EXCLUDES))]
     return BridgeConfig(
@@ -105,7 +119,10 @@ def save(cfg: BridgeConfig) -> Path:
     if cfg.raml is not None:
         raml = tomlkit.table()
         raml["work"] = cfg.raml.work
-        raml["studio"] = cfg.raml.studio
+        if cfg.raml.studio is not None:
+            raml["studio"] = cfg.raml.studio
+        else:
+            raml.add(tomlkit.comment("sem pasta no workspace: o Studio le do Exchange"))
         doc["raml"] = raml
 
     doc["excludes"] = cfg.excludes

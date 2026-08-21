@@ -47,29 +47,30 @@ def test_init_por_flags_nao_pergunta_nada(workspace):
 def test_sem_terminal_o_erro_ensina_a_flag(workspace):
     """Sem stdin e sem flags, orienta em vez de abortar sem explicacao.
 
-    A API tem uma opcao so e e resolvida sem perguntar; o primeiro prompt de verdade e o
-    do RAML, que tem duas (a pasta encontrada e "nenhuma").
+    O primeiro prompt e o da API, porque toda escolha e perguntada — inclusive quando ha
+    um candidato so. Ver test_pergunta_mesmo_com_uma_opcao.
     """
     result = runner.invoke(app, _args(workspace), input="")
 
     assert result.exit_code == 1
-    assert "--raml" in result.output
-    assert "pedidos-raml" in result.output, "deve listar as opcoes encontradas"
+    assert "--api" in result.output
+    assert "pedidos-api" in result.output, "deve listar as opcoes encontradas"
 
 
-def test_opcao_unica_nao_pergunta(workspace):
-    """Uma opcao so nao e escolha — resolver sozinho poupa uma ida e volta inutil.
+def test_pergunta_mesmo_com_uma_opcao(workspace):
+    """Uma opcao so nao autoriza escolher calado: o pareamento e do usuario.
 
-    Aqui a pasta da API e a unica candidata no repositorio, entao o init nao para nela.
+    Antes o init resolvia sozinho quando havia um candidato unico. Parecia poupar uma ida
+    e volta, mas foi assim que um pareamento errado passou sem ninguem ver — o unico
+    candidato oferecido como par do RAML era o proprio projeto da API, e o comando o
+    aceitou em silencio. So apareceu quando o `parastudio` criou uma pasta de lixo no
+    workspace do Studio.
     """
-    result = runner.invoke(
-        app, _args(workspace, raml="nenhuma", studio_api="studio-pedidos"), input=""
-    )
+    result = runner.invoke(app, _args(workspace, raml="nenhuma"), input="")
 
-    assert result.exit_code == 0, result.output
-    assert "unica opcao" in result.output, "deve dizer que resolveu sozinho"
-    cfg = config.load(workspace["work"])
-    assert cfg.api.work == "pedidos-api", "a API foi resolvida sem perguntar"
+    assert result.exit_code == 1, "deve parar e perguntar, nao escolher sozinho"
+    assert "--api" in result.output, "e ensinar a flag da escolha pendente"
+    assert "pedidos-api" in result.output, "listando o unico candidato encontrado"
 
 
 def test_avisa_quando_nao_ha_pasta_de_raml(workspace):
@@ -78,7 +79,9 @@ def test_avisa_quando_nao_ha_pasta_de_raml(workspace):
 
     shutil.rmtree(workspace["work"] / "pedidos-raml")
 
-    result = runner.invoke(app, _args(workspace, studio_api="studio-pedidos"), input="")
+    result = runner.invoke(
+        app, _args(workspace, api="pedidos-api", studio_api="studio-pedidos"), input=""
+    )
 
     assert result.exit_code == 0, result.output
     assert "pararepo raml" in result.output, "deve dizer como criar a pasta"

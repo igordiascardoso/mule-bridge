@@ -33,13 +33,11 @@ def _choose(title: str, options: list[str], *, flag: str, default: int = 1) -> i
     Sem terminal interativo (extensão de IDE, agente de IA, CI) não há como perguntar: o
     erro lista as opções encontradas e ensina a flag que dispensa o prompt.
     """
-    if len(options) == 1:
-        # Uma opcao so nao e escolha: perguntar aqui e ritual vazio, e obriga um agente
-        # de IA a uma ida e volta inutil com o usuario.
-        console.print(f"\n[bold]{title}[/]")
-        console.print(f"  [green]{options[0]}[/]  [dim](unica opcao)[/]")
-        return 0
-
+    # Sempre perguntar, mesmo com uma opcao so. Resolver sozinho parecia poupar uma ida e
+    # volta, mas e onde o erro passa sem ninguem ver: num teste de instalacao do zero, o
+    # unico candidato oferecido como par do RAML era o projeto da API, e o comando o
+    # escolheu calado — gravando um pareamento errado que so apareceu quando o
+    # `parastudio` criou uma pasta de lixo no workspace. O pareamento e do usuario.
     console.print(f"\n[bold]{title}[/]")
     for i, opt in enumerate(options, 1):
         console.print(f"  [cyan]{i}[/]. {opt}")
@@ -81,6 +79,43 @@ def _pick(
 
     disponiveis = ", ".join(o.split()[0] for o in options)
     raise ConfigError(f"{flag} {given!r} nao encontrado. Opcoes: {disponiveis}")
+
+
+def _escolher_workspace() -> Path:
+    """Pergunta onde fica o workspace do Studio, sempre com a saída de digitar o caminho.
+
+    A busca automática nunca cobre todos os casos — workspace noutro drive, em pasta de
+    rede, num caminho que só o usuário conhece. Então a última opção da lista é sempre
+    "outro caminho", e quando nada é encontrado o prompt já pede o caminho direto.
+    """
+    workspaces = discovery.find_studio_workspaces()
+    OUTRO = "outro caminho — eu digito"
+
+    if workspaces:
+        idx = _choose(
+            "Onde fica o workspace do Anypoint Studio?",
+            [*(str(w) for w in workspaces), OUTRO],
+            flag="--studio-root",
+        )
+        if idx < len(workspaces):
+            return workspaces[idx]
+    else:
+        console.print(
+            "\n[yellow]Nao encontrei o workspace do Studio nos caminhos usuais.[/]\n"
+            "[dim]No Studio, o caminho aparece em File > Switch Workspace.[/]"
+        )
+
+    try:
+        digitado = typer.prompt("Caminho do workspace")
+    except (typer.Abort, EOFError, OSError) as exc:
+        raise NonInteractiveError(
+            "Onde fica o workspace do Anypoint Studio? — não há terminal interativo "
+            "para perguntar.\n"
+            "Repita o comando com o caminho, ex: "
+            "--studio-root ~/AnypointStudio/studio-workspace"
+        ) from exc
+
+    return Path(digitado.strip().strip('"').strip("'"))
 
 
 def _resolve_root(work_root: Path | None) -> Path:
@@ -175,20 +210,10 @@ def init(
 
         # Lado do workspace do Studio.
         if studio_root is None:
-            workspaces = discovery.find_studio_workspaces()
-            if not workspaces:
-                raise DiscoveryError(
-                    "Nenhum workspace do Studio encontrado nos caminhos padrão. "
-                    "Informe com --studio-root."
-                )
-            studio_root = workspaces[
-                _choose(
-                    "Onde fica o workspace do Anypoint Studio?",
-                    [str(w) for w in workspaces],
-                    flag="--studio-root",
-                )
-            ]
+            studio_root = _escolher_workspace()
         studio_root = studio_root.expanduser().resolve()
+        if not studio_root.is_dir():
+            raise DiscoveryError(f"Esse caminho nao existe: {studio_root}")
 
         remote = discovery.find_projects(studio_root)
         if not remote:
@@ -205,25 +230,34 @@ def init(
 
         studio_raml = None
         if raml_local is not None:
-            labels = [*names, "nenhuma — o RAML so existe aqui, nao no Studio"]
+            # O projeto ja pareado com a API nao pode ser oferecido como par do RAML: e
+            # sempre resposta errada, e antes ele aparecia como a unica opcao — a ponto de
+            # o exemplo da flag sugerir justamente o pareamento equivocado.
+            candidatos = [p for p in remote if p.name != studio_api.name]
+            labels = [
+                *(f"{p.name}  [{p.kind}]" for p in candidatos),
+                "nenhuma — o RAML so existe aqui, nao no Studio",
+            ]
+            # O normal e nao haver pasta: o Studio consome o RAML como dependencia do
+            # Exchange. Por isso "nenhuma" e o padrao, e nao a primeira pasta da lista.
             idx = _pick(
                 f"No Studio, qual pasta e o seu {raml_local.name}?  ({studio_root})",
                 labels,
                 flag="--studio-raml",
                 given=studio_raml_name,
+                default=len(labels),
             )
-            studio_raml = remote[idx] if idx < len(remote) else None
+            studio_raml = candidatos[idx] if idx < len(candidatos) else None
 
         cfg = BridgeConfig(
             work_root=work_root,
             studio_root=studio_root,
             api=ProjectPair(api.name, studio_api.name),
-            # O RAML costuma nao ter par no workspace: o Studio o consome como dependencia
-            # do Exchange, sem uma pasta propria. Guardamos a pasta local de todo modo,
-            # apontando para ela mesma — e o `pararepo raml` (que le do cache do Maven,
-            # nao do Studio) passa a funcionar.
+            # `studio=None` quando o RAML nao tem pasta no workspace, que e o normal: o
+            # Studio o consome como dependencia do Exchange. A pasta local e guardada de
+            # todo modo, para o `pararepo raml` saber onde ela fica.
             raml=(
-                ProjectPair(raml_local.name, (studio_raml.name if studio_raml else raml_local.name))
+                ProjectPair(raml_local.name, studio_raml.name if studio_raml else None)
                 if raml_local
                 else None
             ),
@@ -318,7 +352,10 @@ def parastudio(
             cfg = _load(_resolve_root(work_root))
         except BridgeError as exc:
             raise _fail(exc) from exc
-        if cfg.raml is not None and not (cfg.studio_root / cfg.raml.studio).is_dir():
+        sem_pasta_no_studio = cfg.raml is not None and (
+            cfg.raml.studio is None or not (cfg.studio_root / cfg.raml.studio).is_dir()
+        )
+        if sem_pasta_no_studio:
             # O Studio consome o RAML como dependencia, sem pasta propria no workspace:
             # copiar criaria lixo que ninguem le. O que faz ele enxergar o RAML editado e
             # a referencia no `pom.xml`, entao e ela que apontamos aqui.
@@ -340,6 +377,11 @@ def pararepo(
     aplicar: bool = typer.Option(
         False, "--aplicar", help="So para 'raml': grava o resultado da juncao."
     ),
+    resolvido: bool = typer.Option(
+        False,
+        "--resolvido",
+        help="Ja combinei os conflitos na mao: aceita o que esta na pasta e fecha a base.",
+    ),
 ) -> None:
     """Traz para o seu repositorio o que mudou no workspace do Studio.
 
@@ -348,10 +390,10 @@ def pararepo(
     """
     alvo = _parse_parte(parte)
     if alvo == "raml":
-        _juntar_raml(work_root, aplicar, dry_run)
+        _juntar_raml(work_root, aplicar, dry_run, resolvido=resolvido)
         return
     if alvo == "api":
-        _juntar_api(work_root, aplicar, dry_run)
+        _juntar_api(work_root, aplicar, dry_run, resolvido=resolvido)
         return
     _run(Direction.PULL, work_root, delete, dry_run, parte)
 
@@ -394,7 +436,9 @@ def _apontar_raml_local(cfg: BridgeConfig, dry_run: bool) -> None:
         )
 
 
-def _juntar_api(work_root: Path | None, aplicar: bool, dry_run: bool) -> None:
+def _juntar_api(
+    work_root: Path | None, aplicar: bool, dry_run: bool, *, resolvido: bool = False
+) -> None:
     """Traz o que mudou na API do lado do Studio, juntando com as edicoes locais.
 
     A base e o ultimo commit do repositorio. Quando a pasta nao esta versionada nao ha
@@ -421,18 +465,26 @@ def _juntar_api(work_root: Path | None, aplicar: bool, dry_run: bool) -> None:
     _report_raml(r, origem="Studio")
     console.print("[dim]O pom.xml nao entra: o do repo segue apontando para o Exchange.[/]")
 
+    resolucoes = None
     if not r.limpo:
+        if not resolvido:
+            console.print(
+                "\n[yellow]Nada foi escrito.[/] Combine as duas versoes no arquivo e rode "
+                "de novo com [bold]--resolvido --aplicar[/], ou peca ao seu agente de IA "
+                "para combina-las."
+            )
+            raise typer.Exit(1)
+        resolucoes = reconcile.resolucoes_do_disco(r, local)
         console.print(
-            "\n[yellow]Nada foi escrito.[/] Resolva os conflitos acima e rode de novo, "
-            "ou peca ao seu agente de IA para combinar as duas versoes."
+            f"\n[yellow]--resolvido:[/] aceitando o que esta em {cfg.api.work} "
+            f"para {', '.join(sorted(resolucoes))}."
         )
-        raise typer.Exit(1)
 
     if dry_run or not aplicar:
         console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
         return
 
-    escritos = reconcile.aplicar(r, local)
+    escritos = reconcile.aplicar(r, local, resolucoes=resolucoes)
     console.print(f"\n[green]{escritos} arquivo(s) atualizado(s) em {cfg.api.work}.[/]")
 
 
@@ -473,6 +525,8 @@ def _juntar_raml(
     aplicar: bool,
     dry_run: bool = False,
     versao_nova: str | None = None,
+    *,
+    resolvido: bool = False,
 ) -> None:
     """Traz a versao nova do RAML preservando as edicoes locais (base + suas por cima).
 
@@ -514,12 +568,22 @@ def _juntar_raml(
 
     _report_raml(r)
 
+    pasta_raml = cfg.work_root / cfg.raml.work
+    resolucoes = None
     if not r.limpo:
+        if not resolvido:
+            console.print(
+                "\n[yellow]Nada foi escrito.[/] Combine as duas versoes no arquivo e rode "
+                "de novo com [bold]--resolvido --aplicar[/], ou peca ao seu agente de IA "
+                "para combina-las."
+            )
+            raise typer.Exit(1)
+        # O usuario afirma ter combinado: o conteudo em disco passa a ser a resolucao.
+        resolucoes = reconcile.resolucoes_do_disco(r, pasta_raml)
         console.print(
-            "\n[yellow]Nada foi escrito.[/] Resolva os conflitos acima e rode de novo, "
-            "ou peca ao seu agente de IA para combinar as duas versoes."
+            f"\n[yellow]--resolvido:[/] aceitando o que esta em {cfg.raml.work} "
+            f"para {', '.join(sorted(resolucoes))}."
         )
-        raise typer.Exit(1)
 
     if dry_run or not aplicar:
         console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
@@ -527,10 +591,11 @@ def _juntar_raml(
 
     escritos, commitou = reconcile.aplicar_em_dois_commits(
         r,
-        cfg.work_root / cfg.raml.work,
+        pasta_raml,
         cfg.work_root,
         cfg.raml.work,
         f"chore(raml): especificacao {artefato} {versao_nova}",
+        resolucoes=resolucoes,
     )
     console.print(f"\n[green]{escritos} arquivo(s) atualizado(s) em {cfg.raml.work}.[/]")
 
@@ -699,8 +764,15 @@ def status(
 
     console.print(f"[bold]trabalho:[/] {cfg.work_root}")
     console.print(f"[bold]workspace:[/] {cfg.studio_root}")
-    for pair in cfg.pairs:
-        console.print(f"  {pair.work}  ->  {pair.studio}")
+    for pair in (cfg.api, cfg.raml):
+        if pair is None:
+            continue
+        if pair.studio is None:
+            console.print(
+                f"  {pair.work}  ->  [dim]sem pasta no workspace; o Studio le do Exchange[/]"
+            )
+        else:
+            console.print(f"  {pair.work}  ->  {pair.studio}")
     console.print()
     _run(Direction.PUSH, work_root, False, True)
 

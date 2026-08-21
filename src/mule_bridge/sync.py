@@ -133,7 +133,13 @@ def sync_all(
     """
     raml_dir = None
     if direction is Direction.PUSH and cfg.raml is not None:
-        raml_dir = cfg.studio_root / cfg.raml.studio
+        # O pom do Studio aponta para a pasta local quando o RAML nao tem par no
+        # workspace; havendo par, aponta para a copia de la.
+        raml_dir = (
+            cfg.studio_root / cfg.raml.studio
+            if cfg.raml.studio is not None
+            else cfg.work_root / cfg.raml.work
+        )
 
     alvos = cfg.pairs
     if only == "api":
@@ -141,6 +147,12 @@ def sync_all(
     elif only == "raml":
         if cfg.raml is None:
             raise SyncError("Este projeto nao tem pasta de RAML configurada.")
+        if cfg.raml.studio is None:
+            raise SyncError(
+                "O RAML nao tem pasta no workspace do Studio — nao ha o que copiar.\n"
+                "Use `ponte parastudio raml`, que aponta o pom.xml do Studio para a sua "
+                "pasta local em vez de copiar."
+            )
         alvos = [cfg.raml]
 
     plans: dict[str, SyncPlan] = {}

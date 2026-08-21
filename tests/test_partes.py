@@ -144,3 +144,87 @@ def test_parastudio_raml_ja_apontado_nao_repete(cfg, workspace):
 
     assert segunda.exit_code == 0
     assert "ja le o RAML" in segunda.output
+
+
+def test_parastudio_sem_parte_nao_cria_pasta_de_raml_no_workspace(workspace):
+    """Regressao encontrada num teste de instalacao do zero.
+
+    Quando o RAML nao tem pasta no workspace (o normal: o Studio o consome do Exchange), o
+    `init` gravava `studio` apontando para o nome da pasta local. O `pararepo raml` passou a
+    funcionar, mas o `parastudio` sem argumento passou a copiar o RAML para um destino
+    inexistente — criando no workspace do Studio uma pasta que ninguem le.
+    """
+    import shutil
+
+    from mule_bridge import config as configmod
+
+    shutil.rmtree(workspace["studio"] / "studio-pedidos-raml")
+    cfg = BridgeConfig(
+        work_root=workspace["work"],
+        studio_root=workspace["studio"],
+        api=ProjectPair("pedidos-api", "studio-pedidos"),
+        raml=ProjectPair("pedidos-raml", None),
+    )
+    configmod.save(cfg)
+
+    plans = sync_all(configmod.load(workspace["work"]), Direction.PUSH)
+
+    assert set(plans) == {"pedidos-api"}, "o RAML sem par no Studio nao entra na copia"
+    assert not (workspace["studio"] / "pedidos-raml").exists()
+    assert not (workspace["studio"] / "studio-pedidos-raml").exists()
+
+
+def test_pedir_raml_sem_par_no_studio_orienta(workspace):
+    """`parastudio raml` explicito: erro que ensina o caminho, em vez de copiar lixo."""
+    cfg = BridgeConfig(
+        work_root=workspace["work"],
+        studio_root=workspace["studio"],
+        api=ProjectPair("pedidos-api", "studio-pedidos"),
+        raml=ProjectPair("pedidos-raml", None),
+    )
+
+    with pytest.raises(SyncError, match="parastudio raml"):
+        sync_all(cfg, Direction.PUSH, only="raml")
+
+
+def test_config_sem_par_no_studio_sobrevive_ao_roundtrip(workspace):
+    """O `None` tem de atravessar gravar-e-ler: senao o bug volta na proxima execucao."""
+    from mule_bridge import config as configmod
+
+    configmod.save(
+        BridgeConfig(
+            work_root=workspace["work"],
+            studio_root=workspace["studio"],
+            api=ProjectPair("pedidos-api", "studio-pedidos"),
+            raml=ProjectPair("pedidos-raml", None),
+        )
+    )
+
+    lida = configmod.load(workspace["work"])
+
+    assert lida.raml is not None, "a pasta local tem de continuar registrada"
+    assert lida.raml.work == "pedidos-raml"
+    assert lida.raml.studio is None, "a ausencia de par tem de ser preservada"
+    assert lida.pairs == [lida.api], "e o RAML fica fora da copia"
+
+
+def test_config_antiga_com_nenhuma_e_lida_como_sem_par(workspace):
+    """Compatibilidade: configs gravadas antes registravam a string 'nenhuma'."""
+    from mule_bridge import config as configmod
+
+    (workspace["work"] / ".mule-bridge.toml").write_text(
+        "[studio]\n"
+        f'root = "{workspace["studio"].as_posix()}"\n'
+        "[api]\n"
+        'work = "pedidos-api"\n'
+        'studio = "studio-pedidos"\n'
+        "[raml]\n"
+        'work = "pedidos-raml"\n'
+        'studio = "nenhuma"\n',
+        encoding="utf-8",
+    )
+
+    lida = configmod.load(workspace["work"])
+
+    assert lida.raml.studio is None
+    assert lida.pairs == [lida.api]
