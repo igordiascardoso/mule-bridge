@@ -263,45 +263,65 @@ saber antes de rodar qualquer um. A regra que resume tudo:
 > Sem essa palavra, nenhum comando altera um arquivo seu. E o `parastudio` nunca escreve
 > aqui — ele só escreve no workspace do Studio.
 
-### Os que não alteram nada
+### Os que só mostram
 
-| Comando | O que faz |
+Estes não escrevem nada em nenhum lugar: **imprimem uma tabela na tela** e terminam. É o
+que você roda para saber onde está antes de mexer em qualquer coisa.
+
+| Comando | O que aparece na tela |
 |---|---|
-| `ponte` | Mostra a ajuda. Se o projeto não estiver pareado, conduz o `init` |
-| `ponte init` | Pareia o repositório com um projeto do Studio. Grava só o `.mule-bridge.toml` |
-| `ponte status` | Mostra o pareamento e o que iria para o Studio |
-| `ponte pararepo` | Mostra o que viria do Studio — e para |
-| `ponte pararepo raml` | Mostra como ficaria a junção com o RAML novo do Exchange |
-| `ponte pararepo api` | Mostra como ficaria a junção com o que o Studio alterou |
+| `ponte` | A lista de comandos |
+| `ponte status` | Quais pastas estão pareadas com quais, e quantos arquivos estão diferentes |
+| `ponte pararepo` | Quantos arquivos viriam do Studio para cá |
+| `ponte pararepo raml` | Quantos arquivos do RAML seriam juntados, quantos são novos do Exchange, quantos têm conflito |
+| `ponte pararepo api` | O mesmo, para o que o Studio alterou no código — e a lista dos arquivos |
+
+Cada linha dessas tabelas é uma contagem de arquivos, e a última é a que importa: **em
+conflito** quer dizer "os dois mexeram no mesmo ponto e alguém tem de decidir". Zero ali
+significa que dá para aplicar sem pensar. A seção **Como a junção funciona**, mais abaixo,
+mostra a tabela completa e explica o que fazer quando há conflito.
+
+**Fora da tabela, o `init`.** Ele roda uma vez por projeto e é o único que faz perguntas:
+qual pasta é a sua API, qual é o RAML, onde fica o workspace do Studio. Grava as respostas
+num arquivo de configuração (`.mule-bridge.toml`) e não toca em mais nada.
 
 ### Os que escrevem no workspace do Studio
 
-Estes gravam na hora, sem pedir. **Nenhum deles toca no seu repositório** — o destino é a
-pasta onde o Studio roda, que se reconstrói reimportando o projeto.
+Estes gravam na hora, sem pedir confirmação. **Nenhum deles toca no seu repositório** — o
+destino é a pasta onde o Studio roda, que se reconstrói reimportando o projeto.
 
-| Comando | Quando usar | O que faz |
+| Comando | Quando usar | O que ele faz |
 |---|---|---|
-| `ponte parastudio` | Editei o RAML **e** o código, quero testar tudo | Copia o RAML e a API para o Studio |
-| `ponte parastudio raml` | Quero que o Studio leia o RAML que eu edito | Aponta o `pom.xml` **do Studio** para a sua pasta local |
-| `ponte parastudio api` | Mexi só em flow, service ou java | Copia a API para o Studio |
+| `ponte parastudio` | Editei o RAML **e** o código, quero testar tudo | Copia seus arquivos por cima dos do Studio |
+| `ponte parastudio api` | Mexi só em flow, service ou java | O mesmo, mas só a pasta da API |
+| `ponte parastudio raml` | Quero que o Studio leia o RAML que eu edito | Não copia nada: muda o `pom.xml` **do Studio** para ele ler a sua pasta direto |
 
-Depois de qualquer um deles **não há passo extra**: o Studio detecta a mudança no disco e
-redeploya sozinho.
+Os dois primeiros imprimem quantos arquivos foram copiados. Depois de qualquer um deles
+**não há passo extra** — o Studio detecta a mudança no disco e redeploya sozinho.
+
+O terceiro é diferente e vale entender: o Studio normalmente baixa o RAML do Exchange, e
+não tem uma pasta dele no workspace. `parastudio raml` reescreve a referência no `pom.xml`
+do Studio para apontar à sua pasta local — a partir daí, você edita o RAML aqui e o Studio
+lê dali direto, sem cópia nenhuma no meio.
 
 ### Os que escrevem no seu repositório
 
-Só estes precisam de `force`, porque só estes mexem nos seus arquivos versionados.
+Só estes precisam de `force`, porque só estes mexem nos seus arquivos versionados. Rode
+sempre sem a palavra primeiro, veja a tabela, e só então acrescente `force`.
 
-| Comando | Quando usar | O que faz |
+| Comando | Quando usar | O que ele faz |
 |---|---|---|
-| `ponte pararepo raml force` | Saiu versão nova do RAML no Exchange | Traz a versão nova **juntando** com o que você editou |
-| `ponte pararepo api force` | O Studio gerou flows no scaffold, ou fiz um fix nele | Traz o que mudou **juntando** com o que você editou |
-| `ponte pararepo force` | Raro — quero o Studio inteiro por cima | ⚠️ Copia por cima, **sem juntar**: descarta suas edições |
+| `ponte pararepo raml force` | Saiu versão nova do RAML no Exchange | Junta a versão nova com a sua, linha por linha |
+| `ponte pararepo api force` | O Studio gerou flows no scaffold, ou fiz um fix nele | Junta o que o Studio mudou com o que você mudou |
+| `ponte pararepo force` | Raro, e quase nunca é o que você quer | ⚠️ Copia por cima **sem juntar** — o que você editou é perdido |
 
-Os dois primeiros **preservam seu trabalho**: se você editou o mesmo arquivo, as duas
-versões são combinadas, e onde não houver combinação possível o comando para e pergunta.
-O terceiro é cópia bruta — é o único que descarta trabalho seu, e por isso quase nunca é o
-que você quer.
+**"Juntar" quer dizer o seguinte.** Se o Exchange mexeu numa parte do arquivo e você em
+outra, as duas mudanças ficam. Se os dois mexeram no **mesmo ponto**, o comando não escolhe
+por você: ele para, mostra as duas versões e não grava nada. Você decide, edita o arquivo, e
+roda de novo acrescentando `resolvido`.
+
+Já os **dois primeiros nunca apagam seu trabalho** — no pior caso eles param e perguntam.
+Só o `pararepo force` sozinho copia por cima, e é por isso que ele é raro.
 
 A ordem das palavras não importa: `pararepo force raml` e `pararepo raml force` são a mesma
 coisa. `forca` também serve.
