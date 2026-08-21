@@ -405,13 +405,15 @@ def _juntar_raml(
     """
     try:
         cfg = _load(_resolve_root(work_root))
-        if cfg.raml is None:
-            raise ConfigError("Este projeto nao tem pasta de RAML configurada.")
 
         coords = pomrewrite.read_raml_coords(cfg.work_root / cfg.api.work / "pom.xml")
         if coords is None:
             raise ConfigError("O pom.xml nao referencia um RAML do Exchange.")
         grupo, artefato, versao_atual = coords
+
+        if cfg.raml is None or not (cfg.work_root / cfg.raml.work).is_dir():
+            _criar_pasta_raml(cfg, grupo, artefato, dry_run or not aplicar)
+            return
 
         if versao_nova is None:
             versao_nova = _versao_alvo(cfg, grupo, artefato, versao_atual)
@@ -440,6 +442,47 @@ def _juntar_raml(
     console.print(
         f"[dim]Lembre de apontar o pom.xml para {versao_nova} quando for commitar.[/]"
     )
+
+
+def _criar_pasta_raml(cfg: BridgeConfig, grupo: str, artefato: str, previa: bool) -> None:
+    """Cria a pasta do RAML na raiz do repositorio, extraindo a versao que o Studio usa.
+
+    Sem pasta nao ha nada para preservar, entao nao ha o que perguntar: pega a versao que
+    o projeto do Studio aponta (ou a mais alta do cache) e extrai. Quando a config ainda
+    nao tem a pasta, ela e gravada junto, para os proximos comandos ja acharem.
+    """
+    pom_studio = cfg.studio_root / cfg.api.studio / "pom.xml"
+    versao = None
+    if pom_studio.is_file():
+        c = pomrewrite.read_raml_coords(pom_studio)
+        versao = c[2] if c else None
+    if versao is None:
+        disponiveis = reconcile.versoes_no_cache(grupo, artefato)
+        if not disponiveis:
+            raise ConfigError(
+                f"O RAML de {artefato} nao esta no cache do Maven.\n"
+                "Abra o projeto no Studio para ele baixar a especificacao primeiro."
+            )
+        versao = disponiveis[-1]
+
+    nome = cfg.raml.work if cfg.raml else f"{artefato}-raml"
+    destino = cfg.work_root / nome
+
+    console.print(f"[bold]A pasta do RAML nao existe — criando de {artefato} {versao}.[/]")
+    console.print(f"  destino: {destino}")
+
+    if previa:
+        console.print("\n[dim]Isso foi uma previa — rode com --aplicar para criar.[/]")
+        return
+
+    reconcile.extrair(reconcile.caminho_no_cache(grupo, artefato, versao), destino)
+    quantos = sum(1 for p in destino.rglob("*") if p.is_file())
+    console.print(f"[green]{quantos} arquivo(s) extraido(s) em {nome}.[/]")
+
+    if cfg.raml is None:
+        cfg.raml = ProjectPair(nome, nome)
+        config.save(cfg)
+        console.print(f"[dim]Pareamento atualizado: {nome} agora faz parte do sync.[/]")
 
 
 def _versao_alvo(cfg: BridgeConfig, grupo: str, artefato: str, versao_atual: str) -> str:

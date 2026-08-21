@@ -85,10 +85,6 @@ pode destruir trabalho nao commitado.
 `pararepo raml` nao copia por cima: traz a versao nova do RAML preservando as edicoes
 locais. A versao vem do `pom.xml` do lado do Studio, que registra o update feito la.
 
-**Se a pasta do RAML nao existir** no repositorio, este comando a cria, extraindo a versao
-que o projeto do Studio usa. Nao pergunte nada nesse caso — nao ha edicao local para
-preservar, entao nao ha decisao a tomar.
-
 Rode primeiro sem `--aplicar`, que so mostra o que aconteceria:
 
 ```bash

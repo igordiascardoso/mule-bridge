@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-38%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-41%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -219,6 +219,10 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 **Se você não editou nada no repo**, o `pararepo raml` e o `pararepo api` simplesmente
 trazem o que veio do outro lado — não há nada para preservar, nem conflito possível.
 
+**Se a pasta do RAML nem existir**, o `pararepo raml` a cria na raiz do repositório,
+extraindo a versão que o projeto do Studio usa — útil num projeto novo, ou quando a pasta
+se perdeu. O pareamento é atualizado junto.
+
 **Flags:**
 
 | Flag | Efeito |
@@ -347,7 +351,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 38 testes
+pytest          # 41 testes
 ruff check .    # lint
 ```
 
