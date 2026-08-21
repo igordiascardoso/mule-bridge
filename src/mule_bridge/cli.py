@@ -399,26 +399,28 @@ def _juntar_raml(
 def _versao_alvo(cfg: BridgeConfig, grupo: str, artefato: str, versao_atual: str) -> str:
     """Descobre para qual versao do RAML trazer.
 
-    Primeiro olha o `pom.xml` do lado do Studio: quando voce faz o update do Exchange por
-    la, e ele que registra a versao escolhida. So se o Studio estiver na mesma versao do
-    repo e que caimos na mais nova ja baixada no cache do Maven.
+    A mais alta ja baixada no cache do Maven e o alvo — em desenvolvimento e sempre ela
+    que interessa, tenha sido o Studio ou um `mvn dependency:get` quem a baixou. O
+    `pom.xml` do lado do Studio entra so como desempate, quando o cache nao tem nada mais
+    novo mas o Studio aponta para outra versao.
     """
+    mais_altas = reconcile.mais_novas_que(
+        reconcile.versoes_no_cache(grupo, artefato), versao_atual
+    )
+    if mais_altas:
+        return mais_altas[-1]
+
     pom_studio = cfg.studio_root / cfg.api.studio / "pom.xml"
     if pom_studio.is_file():
         coords = pomrewrite.read_raml_coords(pom_studio)
         if coords and coords[2] != versao_atual:
-            console.print(
-                f"[dim]O projeto no Studio esta na {coords[2]} — trazendo essa versao.[/]"
-            )
+            console.print(f"[dim]O Studio aponta para a {coords[2]} — trazendo essa versao.[/]")
             return coords[2]
 
-    candidatas = [v for v in reconcile.versoes_no_cache(grupo, artefato) if v != versao_atual]
-    if not candidatas:
-        raise ConfigError(
-            f"Nao ha versao mais nova para trazer — repo e Studio estao na {versao_atual}.\n"
-            "Faca o update do Exchange no Studio (Properties > Mule Project > APIs) primeiro."
-        )
-    return candidatas[-1]
+    raise ConfigError(
+        f"Nao ha versao mais nova para trazer — a mais alta baixada e a {versao_atual}.\n"
+        "Faca o update do Exchange no Studio (Properties > Mule Project > APIs) primeiro."
+    )
 
 
 def _report_raml(r: reconcile.Reconciliacao) -> None:

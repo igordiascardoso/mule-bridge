@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-36%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-38%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -230,13 +230,13 @@ Quando sai uma versão nova do RAML no Exchange, copiar por cima apagaria suas e
 `pararepo raml` faz o contrário: trata a versão do Exchange como base e **reaplica suas
 edições por cima**, como um `git rebase`.
 
-A versão a trazer sai do `pom.xml` do lado do Studio — quando você faz o update do
-Exchange lá (*Properties > Mule Project > APIs*), é ele que registra a escolha.
+A versão a trazer é a mais alta já baixada no cache local do Maven (`~/.m2`) — tenha sido
+o Studio (*Properties > Mule Project > APIs*) ou um `mvn dependency:get` quem a baixou, a
+fonte é a mesma. O `pom.xml` do lado do Studio entra só como desempate.
 
 ```console
 $ mule-bridge pararepo raml
 
-O projeto no Studio está na 1.1.55 — trazendo essa versão.
 
 RAML 1.1.54 -> 1.1.55
 
@@ -310,7 +310,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 36 testes
+pytest          # 38 testes
 ruff check .    # lint
 ```
 

@@ -89,6 +89,11 @@ def versoes_no_cache(grupo: str, artefato: str, m2: Path | None = None) -> list[
     return sorted(achadas, key=_ordem_versao)
 
 
+def mais_novas_que(versoes: list[str], atual: str) -> list[str]:
+    """Filtra as versoes posteriores a `atual`, na ordem numerica."""
+    return [v for v in versoes if _ordem_versao(v) > _ordem_versao(atual)]
+
+
 def _ordem_versao(v: str) -> tuple:
     """Ordena 1.1.9 antes de 1.1.10, que a ordem alfabetica erraria."""
     partes = []

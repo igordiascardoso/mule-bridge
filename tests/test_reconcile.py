@@ -215,3 +215,17 @@ def test_versoes_ordenadas_numericamente(tmp_path):
         _zip_raml(reconcile.caminho_no_cache("g", "leilao", v, m2), {"api.raml": BASE})
 
     assert reconcile.versoes_no_cache("g", "leilao", m2) == ["1.1.9", "1.1.10", "1.1.54"]
+
+
+def test_mais_novas_que_ignora_versoes_antigas():
+    todas = ["1.1.52", "1.1.53", "1.1.54", "1.1.55"]
+
+    assert reconcile.mais_novas_que(todas, "1.1.54") == ["1.1.55"]
+    assert reconcile.mais_novas_que(todas, "1.1.55") == []
+    assert reconcile.mais_novas_que(todas, "1.1.52") == ["1.1.53", "1.1.54", "1.1.55"]
+
+
+def test_mais_novas_que_compara_numericamente():
+    """1.1.9 e anterior a 1.1.10, ainda que a ordem alfabetica diga o contrario."""
+    assert reconcile.mais_novas_que(["1.1.9", "1.1.10"], "1.1.9") == ["1.1.10"]
+    assert reconcile.mais_novas_que(["1.1.9", "1.1.10"], "1.1.10") == []
