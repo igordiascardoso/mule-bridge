@@ -36,8 +36,8 @@ redeploya sozinho. Não sugira reimportar o projeto nem reiniciar o Studio.
 - **Nenhum `pararepo` grava sem a palavra `force`** — sem ela é prévia. Rode primeiro sem,
   mostre o que aconteceria, e **só acrescente `force` depois de o usuário confirmar**. Nunca
   acrescente essa palavra por conta própria para "completar a tarefa".
-- **Nunca passe `--delete`** sem o usuário pedir explicitamente: ele apaga no destino, e no
-  `pararepo` o destino é este repositório.
+- **O vocabulário inteiro são quatro palavras:** `raml`, `api`, `force`, `resolvido`. Não há
+  flags a descobrir — uma palavra fora dessa lista é recusada de propósito.
 - **O `pom.xml` daqui nunca deve ser alterado para apontar ao RAML local.** Essa reescrita
   acontece só no workspace do Studio; aqui ele segue apontando para o Exchange com a versão
   travada, que é o que vai para o remoto. A ferramenta já cuida disso — não faça na mão.

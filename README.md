@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-197%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -59,7 +59,7 @@ sem passo manual.
 | Aponta o `pom.xml` para o RAML local **só no Studio** | ❌ | ✅ |
 | Impede que esse apontamento vaze para o commit | ❌ | ✅ |
 | Traz de volta os flows que o scaffold gerou | ❌ | ✅ `pararepo api` |
-| Mostra o que vai mudar antes de mudar | ❌ | ✅ `--dry-run` |
+| Mostra o que vai mudar antes de mudar | ❌ | ✅ é o padrão |
 
 ## Pré-requisitos
 
@@ -249,8 +249,8 @@ Depois:
 /ponte status            # não altera nada
 ```
 
-A skill não reimplementa nada: ela escolhe o comando certo, roda `--dry-run` antes de
-operações de risco e nunca passa `--delete` sem você pedir. Para o `init`, ela lista os
+A skill não reimplementa nada: ela escolhe o comando certo, mostra o resultado antes de
+gravar e nunca acrescenta `force` por conta própria. Para o `init`, ela lista os
 projetos encontrados, pergunta qual é o correto e roda o comando com as flags da sua
 escolha — funciona igual na extensão do VS Code, onde não há terminal para prompts.
 
@@ -291,25 +291,18 @@ Este é o comando que escreve no seu repositório, então gravar precisa ser del
 `force`, ele mostra o que faria e para:
 
 ```bash
-ponte pararepo             # prévia
-ponte pararepo force       # grava
-ponte pararepo raml force  # grava só o RAML
+ponte pararepo             # mostra o que viria
+ponte pararepo force       # traz
+ponte pararepo raml force  # traz só o RAML
 ```
 
-A ordem não importa (`pararepo force raml` vale igual), e `forca` também serve. É uma
-palavra em vez de uma flag justamente porque o uso principal é digitado no chat de um
-agente de IA, onde um `--aplicar` no fim da linha passa despercebido. O `parastudio` não
-exige nada disso: o destino dele é o workspace do Studio, que se reconstrói reimportando.
+A ordem não importa (`pararepo force raml` vale igual) e `forca` também serve. O
+`parastudio` não exige nada disso: o destino dele é o workspace do Studio, que se
+reconstrói reimportando o projeto.
 
-**Flags:**
-
-| Flag | Efeito |
-|---|---|
-| `--dry-run`, `-n` | Mostra o que seria feito, sem alterar nada. |
-| `--resolvido` | Depois de você combinar um conflito à mão: aceita o que está na pasta. |
-| `--delete` | Remove no destino os arquivos que já não existem na origem. |
-| `--work-root`, `-w` | Roda a partir de outro diretório, em vez do atual. |
-| `--aplicar` | O mesmo que `force`, mantido para quem já usa em script. |
+**O vocabulário inteiro são quatro palavras:** `raml`, `api`, `force` e `resolvido`. Não há
+mais nada para lembrar — e é de propósito, porque cada palavra a mais é uma coisa a mais
+para errar, sua ou de um agente agindo por você.
 
 ### O dia a dia
 
@@ -428,8 +421,8 @@ sobrescrita em silêncio.
 - **O `pom.xml` do repositório nunca é sobrescrito.** No `parastudio` a reescrita para o
   RAML local acontece só no destino; no `pararepo` o arquivo é ignorado. Seu repositório
   segue sempre apontando para o Exchange com a versão travada.
-- **Nada é apagado sem `--delete`**, e essa flag nunca é passada por conta própria — nem
-  pela skill.
+- **Nada é apagado.** Um arquivo que você removeu de um lado continua existindo no outro,
+  até você removê-lo lá também.
 - **Nada é escrito enquanto houver conflito** — nem os arquivos que deram certo.
 
 ## Como funciona
@@ -463,7 +456,7 @@ build e metadados. A lista é configurável em `.mule-bridge.toml`.
 
 O sync roda sob demanda. Um processo em segundo plano copiando arquivos enquanto o scaffold
 do Studio reescreve os mesmos arquivos é receita para perder trabalho — você decide quando
-sincronizar, e o `--dry-run` deixa conferir antes.
+sincronizar, e o `pararepo` sem `force` deixa conferir antes.
 
 ## Desenvolvimento
 
@@ -472,7 +465,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 197 testes
+pytest          # 201 testes
 ruff check .    # lint
 ```
 
@@ -483,7 +476,7 @@ do `pom.xml`, `config` lembra o pareamento.
 ## Roadmap
 
 - [x] Descoberta interativa de projetos nos dois lados
-- [x] Sync bidirecional (`parastudio` / `pararepo`) com `--dry-run`
+- [x] Sync bidirecional (`parastudio` / `pararepo`), com prévia por padrão
 - [x] Reescrita do `pom.xml` isolada no workspace do Studio
 - [x] **Reconciliação tipo `git rebase`** para o RAML (`pararepo raml`)
 - [x] Mesma reconciliação para os arquivos da API (`pararepo api`), usando o último commit

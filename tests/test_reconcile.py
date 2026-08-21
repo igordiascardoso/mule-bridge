@@ -338,3 +338,32 @@ def test_dois_commits_recusa_com_conflito_pendente(tmp_path):
         reconcile.aplicar_em_dois_commits(r, local, tmp_path, "raml", "chore: base")
 
     assert "Mercosul" in (local / "api.raml").read_text(encoding="utf-8")
+
+
+def test_commitar_base_aceita_todas_as_frases_de_nada_a_commitar(tmp_path, monkeypatch):
+    """O git diz "nada a commitar" de varias formas; todas significam sucesso.
+
+    Regressao vista no projeto real: o codigo tratava "nothing to commit" e "nothing added",
+    mas o git respondeu "no changes added to commit" — e o comando reportou erro numa
+    operacao que dera certo, dizendo "nao commitei a base" quando nao havia base a commitar.
+    """
+    import subprocess
+
+    def resposta_do_git(frase: str):
+        """`git rev-parse` e `git add` passam; o commit devolve a frase."""
+
+        def falso_run(cmd, **kwargs):
+            if "commit" in cmd:
+                return subprocess.CompletedProcess(cmd, 1, stdout=frase, stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        return falso_run
+
+    for frase in (
+        "nothing to commit",
+        "nothing added to commit",
+        "no changes added to commit",
+    ):
+        monkeypatch.setattr(subprocess, "run", resposta_do_git(frase))
+
+        assert reconcile.commitar_base(tmp_path, "pasta", "msg") is True, frase

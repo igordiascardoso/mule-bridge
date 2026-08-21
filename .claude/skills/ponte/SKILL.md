@@ -70,28 +70,21 @@ depois de ele confirmar — ou quando ele mesmo tiver digitado a palavra.
 
 E de proposito que a protecao seja uma palavra e nao uma flag: e o comando que escreve no
 repositorio do usuario, e uma palavra a mais no meio de uma conversa e deliberada de um
-jeito que um `--aplicar` no fim da linha nao e. O `parastudio` nao exige nada disso — o
+jeito que uma flag no fim da linha nao e. O `parastudio` nao exige nada disso — o
 destino dele e o workspace do Studio, que se reconstroi reimportando o projeto.
 
 Depois do `parastudio` **nao ha passo extra**: o Studio detecta a mudanca no disco e
 redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
 
-## Quando usar --dry-run
+## O vocabulario inteiro sao quatro palavras
 
-Rode `--dry-run` antes do sync de verdade quando:
+`raml`, `api`, `force`, `resolvido`. Nao ha mais nada — nenhuma flag a descobrir, nenhuma
+opcao escondida. Se voce sentir falta de alguma coisa, o comando provavelmente ja faz por
+padrao: sem `force` ele so mostra, e apagar arquivos ele nao faz.
 
-- for a primeira sincronizacao deste projeto na sessao;
-- o usuario demonstrar duvida sobre o que vai mudar;
-- for um `pararepo` (o destino sao os arquivos versionados do usuario).
-
-Mostre o resultado e confirme antes de rodar sem a flag.
-
-## --delete exige confirmacao
-
-`--delete` apaga arquivos no destino. **Nunca** passe essa flag por conta propria — so
-quando o usuario pedir explicitamente, e mesmo assim rode antes com `--dry-run` e mostre a
-lista do que sera removido. No `pararepo`, o destino e o repositorio do usuario: apagar ali
-pode destruir trabalho nao commitado.
+**Nao invente flag.** Uma palavra que nao esta nessa lista e recusada com erro, de
+proposito: um typo nao pode virar gravacao. Se o usuario pedir algo que o vocabulario nao
+cobre, diga isso em vez de tentar uma flag.
 
 ## pararepo raml — juncao, nao copia
 
@@ -133,11 +126,11 @@ que voce entra. Para cada conflito:
 4. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
    combinacao. Mostre os dois lados e pergunte qual vale.
 5. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
-   rode `ponte pararepo raml force --resolvido`.
+   rode `ponte pararepo raml force resolvido`.
 
-O `--resolvido` e obrigatorio nesse segundo passo: sem ele o comando recusa de novo, porque
+A palavra `resolvido` e obrigatoria nesse segundo passo: sem ela o comando recusa de novo, porque
 a base continua sendo a versao antiga e o texto combinado ainda diverge dos dois lados. A
-flag diz "ja combinei, aceite o que esta na pasta" — entao **so use depois de o usuario
+palavra diz "ja combinei, aceite o que esta na pasta" — entao **so use depois de o usuario
 aprovar a combinacao**, nunca para contornar um conflito que voce nao resolveu.
 
 Ao final, lembre o usuario de apontar o `pom.xml` para a versao nova: e isso que encerra o

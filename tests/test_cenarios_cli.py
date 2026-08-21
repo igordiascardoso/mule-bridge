@@ -331,7 +331,7 @@ def test_ciclo_completo_pela_cli(projeto):
 # --- Saida do impasse: --resolvido ----------------------------------------------
 
 
-def test_conflito_ensina_a_flag_de_saida(projeto):
+def test_conflito_ensina_a_palavra_de_saida(projeto):
     """A mensagem tem de dizer COMO sair, nao so que houve conflito.
 
     Antes ela mandava "resolva e rode de novo" — mas rodar de novo repetia o mesmo
@@ -345,7 +345,7 @@ def test_conflito_ensina_a_flag_de_saida(projeto):
 
     r = _rodar(projeto, "pararepo", "raml", "--aplicar")
 
-    assert "--resolvido" in r.output, "a saida tem de ensinar a flag"
+    assert "resolvido" in r.output, "a saida tem de ensinar a palavra"
 
 
 def test_resolvido_aceita_o_que_esta_no_disco(projeto):
@@ -354,7 +354,7 @@ def test_resolvido_aceita_o_que_esta_no_disco(projeto):
     combinado = BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n    novo: string\n")
     caminho.write_text(combinado, encoding="utf-8")
 
-    r = _rodar(projeto, "pararepo", "raml", "--resolvido", "--aplicar")
+    r = _rodar(projeto, "pararepo", "raml", "force", "resolvido")
 
     assert r.exit_code == 0, r.output
     final = caminho.read_text(encoding="utf-8")
@@ -365,14 +365,14 @@ def test_resolvido_aceita_o_que_esta_no_disco(projeto):
 
 def test_resolvido_nao_e_preciso_quando_nao_ha_conflito(projeto):
     """A flag e inerte no caminho limpo: nao muda o resultado de um merge sem conflito."""
-    r = _rodar(projeto, "pararepo", "raml", "--resolvido", "--aplicar")
+    r = _rodar(projeto, "pararepo", "raml", "force", "resolvido")
 
     assert r.exit_code == 0, r.output
     assert (projeto["raml"] / "domain" / "captcha.raml").is_file()
 
 
 def test_sem_resolvido_o_conflito_nao_escreve(projeto):
-    """A flag e a unica porta: sem ela, o comportamento antigo continua valendo."""
+    """A palavra e a unica porta: sem ela, o comportamento antigo continua valendo."""
     caminho = projeto["raml"] / "api.raml"
     caminho.write_text(
         BASE_RAML.replace("  Item:\n", "  Item:\n    meu: string\n"), encoding="utf-8"
@@ -395,14 +395,14 @@ def test_resolvido_na_api_tambem(projeto):
         "<mule>\n  <flow name='deles'/>\n</mule>\n", encoding="utf-8"
     )
 
-    sem_flag = _rodar(projeto, "pararepo", "api", "--aplicar")
+    sem_flag = _rodar(projeto, "pararepo", "api", "force")
     assert sem_flag.exit_code == 1
-    assert "--resolvido" in sem_flag.output
+    assert "resolvido" in sem_flag.output
 
     combinado = "<mule>\n  <flow name='meu'/>\n  <flow name='deles'/>\n</mule>\n"
     (projeto["work"] / "pedidos-api" / rel).write_text(combinado, encoding="utf-8")
 
-    com_flag = _rodar(projeto, "pararepo", "api", "--resolvido", "--aplicar")
+    com_flag = _rodar(projeto, "pararepo", "api", "force", "resolvido")
 
     assert com_flag.exit_code == 0, com_flag.output
     final = (projeto["work"] / "pedidos-api" / rel).read_text(encoding="utf-8")

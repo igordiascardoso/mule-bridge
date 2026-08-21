@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -318,36 +319,55 @@ def _parse_parte(parte: str | None) -> str | None:
     raise typer.BadParameter(f"Parte {parte!r} desconhecida — use 'raml', 'api', ou nada (tudo).")
 
 
-def _parse_palavras(palavras: list[str] | None) -> tuple[str | None, bool]:
-    """Separa a parte (`raml`/`api`) da palavra `force`, em qualquer ordem.
+#: As únicas palavras que os comandos aceitam. Deliberadamente poucas: cada palavra a mais
+#: é uma coisa a mais para o usuário — ou para o agente de IA agindo por ele — errar.
+#:
+#: Não entram aqui: "previa" (sem `force` já é prévia), "tudo" (é o padrão), nem uma palavra
+#: para apagar arquivos, que continua só na flag `--delete` por ser destrutiva e rara.
+PALAVRAS: dict[str, tuple[str, ...]] = {
+    "raml": ("raml",),
+    "api": ("api",),
+    "force": ("force", "forca", "força"),
+    "resolvido": ("resolvido", "resolvi", "combinei"),
+}
 
-    O `pararepo` escreve no repositório do usuário, e o uso principal é digitado no chat de
-    um agente de IA — onde uma flag no fim da linha passa batida. Exigir a palavra `force`
-    torna a gravação deliberada: `ponte pararepo force`, `ponte pararepo raml force`.
 
-    Devolve (parte, force).
-    """
+@dataclass
+class Pedido:
+    """O que o usuário pediu, já traduzido das palavras do comando."""
+
     parte: str | None = None
-    force = False
+    force: bool = False
+    resolvido: bool = False
+
+
+def _parse_palavras(palavras: list[str] | None) -> Pedido:
+    """Traduz as palavras do comando, em qualquer ordem.
+
+    `ponte pararepo raml force` e `ponte pararepo force raml` valem igual: ninguém memoriza
+    sintaxe no meio de uma conversa. Uma palavra desconhecida é recusada em vez de ignorada
+    — um typo não pode virar gravação.
+    """
+    pedido = Pedido()
 
     for bruta in palavras or []:
-        valor = bruta.strip().lower()
-        if valor in {"force", "forca", "força"}:
-            force = True
-        elif valor in {"raml", "api"}:
-            if parte is not None and parte != valor:
+        valor = bruta.strip().lower().lstrip("-")
+        canonica = next((k for k, v in PALAVRAS.items() if valor in v), None)
+
+        if canonica in {"raml", "api"}:
+            if pedido.parte is not None and pedido.parte != canonica:
                 raise typer.BadParameter(
-                    f"Escolha uma parte só: veio '{parte}' e '{valor}'."
+                    f"Escolha uma parte só: veio '{pedido.parte}' e '{canonica}'."
                 )
-            parte = valor
-        elif valor in {"tudo", "todos", "all"}:
-            parte = None
+            pedido.parte = canonica
+        elif canonica is not None:
+            setattr(pedido, canonica, True)
         else:
             raise typer.BadParameter(
                 f"Nao entendi {bruta!r} — use 'raml', 'api', 'force', ou nada."
             )
 
-    return parte, force
+    return pedido
 
 
 def _run(
@@ -369,17 +389,17 @@ def _run(
 
 @app.command()
 def parastudio(
-    parte: str | None = typer.Argument(
+    palavras: list[str] | None = typer.Argument(
         None, help="'raml' ou 'api' para mandar so uma parte. Sem nada, manda as duas."
     ),
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    delete: bool = typer.Option(
-        False, "--delete", help="Remove no workspace o que ja nao existe na pasta de trabalho."
-    ),
-    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
+    delete: bool = typer.Option(False, "--delete", hidden=True),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", hidden=True),
 ) -> None:
     """Manda o que voce editou aqui para o workspace do Studio."""
-    if _parse_parte(parte) == "raml":
+    p = _parse_palavras(palavras)
+
+    if p.parte == "raml":
         try:
             cfg = _load(_resolve_root(work_root))
         except BridgeError as exc:
@@ -393,7 +413,7 @@ def parastudio(
             # a referencia no `pom.xml`, entao e ela que apontamos aqui.
             _apontar_raml_local(cfg, dry_run)
             return
-    _run(Direction.PUSH, work_root, delete, dry_run, parte)
+    _run(Direction.PUSH, work_root, delete, dry_run, p.parte)
 
 
 @app.command()
@@ -403,18 +423,10 @@ def pararepo(
         help="'raml' ou 'api' para trazer so uma parte, e 'force' para gravar de verdade.",
     ),
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    delete: bool = typer.Option(
-        False, "--delete", help="Remove na pasta de trabalho o que ja nao existe no workspace."
-    ),
-    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
-    aplicar: bool = typer.Option(
-        False, "--aplicar", help="So para 'raml': grava o resultado da juncao."
-    ),
-    resolvido: bool = typer.Option(
-        False,
-        "--resolvido",
-        help="Ja combinei os conflitos na mao: aceita o que esta na pasta e fecha a base.",
-    ),
+    delete: bool = typer.Option(False, "--delete", hidden=True),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", hidden=True),
+    aplicar: bool = typer.Option(False, "--aplicar", hidden=True),
+    resolvido: bool = typer.Option(False, "--resolvido", hidden=True),
 ) -> None:
     """Traz para o seu repositorio o que mudou no workspace do Studio.
 
@@ -423,30 +435,33 @@ def pararepo(
         ponte pararepo force
         ponte pararepo raml force
 
+    Aceita tambem `resolvido`, depois de voce combinar um conflito na mao.
+
     `pararepo raml` nao e uma copia: ele traz a versao nova do RAML **juntando** com as
     suas edicoes, para que nada do seu trabalho seja sobrescrito.
     """
-    parte, force = _parse_palavras(palavras)
-    # `force` como palavra, e nao flag, porque este comando escreve no repositorio do
-    # usuario e o uso principal e digitado no chat de um agente de IA. Uma palavra a mais
-    # e deliberada de um jeito que `--aplicar` no fim da linha nao e.
-    aplicar = aplicar or force
-    if parte == "raml":
+    p = _parse_palavras(palavras)
+    # Palavras, e nao flags, porque este comando escreve no repositorio do usuario e o uso
+    # principal e digitado no chat de um agente de IA. Uma palavra a mais no comando e
+    # deliberada de um jeito que `--aplicar` no fim da linha nao e.
+    aplicar = aplicar or p.force
+    resolvido = resolvido or p.resolvido
+
+    if p.parte == "raml":
         _juntar_raml(work_root, aplicar, dry_run, resolvido=resolvido)
         return
-    if parte == "api":
+    if p.parte == "api":
         _juntar_api(work_root, aplicar, dry_run, resolvido=resolvido)
         return
     if not aplicar and not dry_run:
         # Sem `force`, a copia direta tambem e so previa: o destino aqui e o repositorio.
-        dry_run = True
-        _run(Direction.PULL, work_root, delete, dry_run, parte)
+        _run(Direction.PULL, work_root, delete, True, p.parte)
         console.print(
             "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo force[/bold] "
             "para gravar.[/]"
         )
         return
-    _run(Direction.PULL, work_root, delete, dry_run, parte)
+    _run(Direction.PULL, work_root, delete, dry_run, p.parte)
 
 
 def _apontar_raml_local(cfg: BridgeConfig, dry_run: bool) -> None:
@@ -521,7 +536,7 @@ def _juntar_api(
         if not resolvido:
             console.print(
                 "\n[yellow]Nada foi escrito.[/] Combine as duas versoes no arquivo e rode "
-                "de novo com [bold]force --resolvido[/], ou peca ao seu agente de IA "
+                "de novo com [bold]force resolvido[/], ou peca ao seu agente de IA "
                 "para combina-las."
             )
             raise typer.Exit(1)
@@ -625,7 +640,7 @@ def _juntar_raml(
         if not resolvido:
             console.print(
                 "\n[yellow]Nada foi escrito.[/] Combine as duas versoes no arquivo e rode "
-                "de novo com [bold]force --resolvido[/], ou peca ao seu agente de IA "
+                "de novo com [bold]force resolvido[/], ou peca ao seu agente de IA "
                 "para combina-las."
             )
             raise typer.Exit(1)

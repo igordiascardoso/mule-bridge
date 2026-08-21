@@ -45,38 +45,78 @@ BASE_RAML = "#%RAML 1.0\ntitle: Pedidos\nversion: v1\ntypes:\n  Pedido:\n  Item:
 
 
 def test_sem_palavras_e_previa_de_tudo():
-    assert _parse_palavras(None) == (None, False)
-    assert _parse_palavras([]) == (None, False)
+    for entrada in (None, []):
+        p = _parse_palavras(entrada)
+        assert p.parte is None
+        assert not p.force and not p.resolvido
 
 
 def test_force_sozinho():
-    assert _parse_palavras(["force"]) == (None, True)
+    p = _parse_palavras(["force"])
+    assert p.parte is None and p.force
 
 
 def test_parte_sem_force():
-    assert _parse_palavras(["raml"]) == ("raml", False)
-    assert _parse_palavras(["api"]) == ("api", False)
+    assert _parse_palavras(["raml"]).parte == "raml"
+    assert _parse_palavras(["api"]).parte == "api"
+    assert not _parse_palavras(["raml"]).force
 
 
 def test_ordem_nao_importa():
-    """No chat ninguem lembra a ordem — as duas formas tem de valer."""
-    assert _parse_palavras(["raml", "force"]) == ("raml", True)
-    assert _parse_palavras(["force", "raml"]) == ("raml", True)
+    """No chat ninguem lembra a ordem — todas as formas tem de valer."""
+    for palavras in (["raml", "force"], ["force", "raml"]):
+        p = _parse_palavras(palavras)
+        assert (p.parte, p.force) == ("raml", True), palavras
 
 
-def test_aceita_a_palavra_em_portugues():
-    """Quem digita em portugues escreve 'forca' ou 'força'."""
-    assert _parse_palavras(["forca"]) == (None, True)
-    assert _parse_palavras(["força"]) == (None, True)
+def test_ordem_nao_importa_com_tres_palavras():
+    for palavras in (
+        ["raml", "force", "resolvido"],
+        ["resolvido", "raml", "force"],
+        ["force", "resolvido", "raml"],
+    ):
+        p = _parse_palavras(palavras)
+        assert (p.parte, p.force, p.resolvido) == ("raml", True, True), palavras
+
+
+def test_aceita_as_palavras_em_portugues():
+    """Quem digita em portugues escreve 'forca' ou 'resolvi'."""
+    assert _parse_palavras(["forca"]).force
+    assert _parse_palavras(["força"]).force
+    assert _parse_palavras(["resolvi"]).resolvido
+    assert _parse_palavras(["combinei"]).resolvido
 
 
 def test_maiuscula_e_espaco_nao_atrapalham():
-    assert _parse_palavras([" FORCE "]) == (None, True)
-    assert _parse_palavras(["RAML"]) == ("raml", False)
+    assert _parse_palavras([" FORCE "]).force
+    assert _parse_palavras(["RAML"]).parte == "raml"
 
 
-def test_tudo_e_explicito_para_as_duas_partes():
-    assert _parse_palavras(["tudo", "force"]) == (None, True)
+def test_aceita_a_palavra_com_hifen_por_engano():
+    """Quem tem habito de CLI digita `--force`; nao ha motivo para recusar."""
+    assert _parse_palavras(["--force"]).force
+    assert _parse_palavras(["--resolvido"]).resolvido
+
+
+def test_vocabulario_e_curto_de_proposito():
+    """Cada palavra a mais e uma coisa a mais para o usuario — ou a IA — errar.
+
+    Este teste falha quando alguem acrescenta uma palavra: e um lembrete de justificar a
+    adicao, nao um impedimento. Nao entraram: "previa" (sem `force` ja e previa), "tudo"
+    (e o padrao) e uma palavra para apagar arquivos.
+    """
+    from mule_bridge.cli import PALAVRAS
+
+    assert set(PALAVRAS) == {"raml", "api", "force", "resolvido"}
+
+
+def test_palavra_que_saiu_do_vocabulario_e_recusada():
+    """`previa` e `tudo` viraram erro claro, em vez de serem ignoradas em silencio."""
+    import typer
+
+    for palavra in ("previa", "tudo", "apagar"):
+        with pytest.raises(typer.BadParameter, match="Nao entendi"):
+            _parse_palavras([palavra])
 
 
 def test_palavra_desconhecida_e_erro():

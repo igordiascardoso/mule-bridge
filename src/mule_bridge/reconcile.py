@@ -122,8 +122,13 @@ def commitar_base(
         return True
 
     saida = (proc.stdout or "") + (proc.stderr or "")
-    if "nothing to commit" in saida or "nothing added" in saida:
-        # Nada a commitar nao e falha: a base ja era exatamente esta.
+    # Nada a commitar nao e falha: a base ja era exatamente esta. O git diz isso de varias
+    # formas, e tratar so uma delas fazia o comando reportar erro numa operacao que deu
+    # certo — assustando o usuario sem motivo.
+    if any(
+        frase in saida
+        for frase in ("nothing to commit", "nothing added", "no changes added")
+    ):
         return True
 
     motivo = saida.strip().splitlines()
