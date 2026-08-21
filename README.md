@@ -203,8 +203,18 @@ No Claude Code há a skill `/ponte`. Instale pedindo ao próprio Claude Code:
 > Instale a skill do mule-bridge em `~/.claude/skills/ponte/SKILL.md`, copiando o conteúdo
 > de https://github.com/igordiascardoso/mule-bridge/blob/main/.claude/skills/ponte/SKILL.md
 
-Reinicie a sessão — skills carregam na abertura. A skill escolhe o comando certo e **nunca
-acrescenta `force` por conta própria**: essa palavra é sempre do usuário.
+Reinicie a sessão — skills carregam na abertura. Daí em diante os mesmos oito comandos
+valem com barra, dentro do chat:
+
+```
+/ponte parastudio raml        /ponte pararepo raml
+/ponte parastudio api         /ponte pararepo api
+/ponte parastudio force       /ponte pararepo force
+/ponte status                 /ponte init
+```
+
+A skill escolhe o comando certo e **nunca acrescenta `force` por conta própria**: essa
+palavra é sempre do usuário.
 
 ## Se `ponte` não for encontrado
 

@@ -50,6 +50,21 @@ confirme antes.
 
 ## Traduzindo o pedido
 
+Com barra, o argumento e o comando — repasse direto:
+
+| O usuario digita | Comando |
+|---|---|
+| `/ponte parastudio raml` | `ponte parastudio raml` |
+| `/ponte parastudio api` | `ponte parastudio api` |
+| `/ponte parastudio force` | `ponte parastudio force` |
+| `/ponte pararepo raml` | `ponte pararepo raml` |
+| `/ponte pararepo api` | `ponte pararepo api` |
+| `/ponte pararepo force` | `ponte pararepo force` |
+| `/ponte status` | `ponte status` |
+| `/ponte init` | ver **init** abaixo |
+
+Em portugues, traduza:
+
 | O usuario diz | Comando |
 |---|---|
 | "manda pro Studio", "sincroniza pro Studio" | `ponte parastudio api` |
@@ -57,7 +72,10 @@ confirme antes.
 | "traz o que o Studio mudou", "pega o scaffold" | `ponte pararepo api` |
 | "atualiza o raml", "saiu versao nova no Exchange" | `ponte pararepo raml` |
 | "o que esta pareado?", "como esta?" | `ponte status` |
-| `init`, "parear", "configurar" | ver **init** abaixo |
+| "parear", "configurar" | ver **init** abaixo |
+
+`/ponte parastudio` e `/ponte pararepo` **sem palavra** sao recusados pela CLI. Nao escolha
+uma palavra por ele: mostre as tres formas validas e pergunte qual e a intencao.
 
 Depois do `parastudio` **nao ha passo extra**: o Studio detecta a mudanca no disco e
 redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
