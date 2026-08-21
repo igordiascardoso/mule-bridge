@@ -14,7 +14,7 @@ certo e reporta o resultado.
 | O usuario digita | Comando |
 |---|---|
 | `parastudio` | `ponte parastudio` |
-| `pararepo` | `ponte pararepo` |
+| `pararepo` | `ponte pararepo` (previa) / `ponte pararepo force` (grava) |
 | `status` | `ponte status` |
 | `init`, `parear`, `configurar` | ver **init** abaixo |
 
@@ -26,6 +26,7 @@ Cada direcao aceita uma parte opcional, quando o usuario quer mover so um lado:
 | `parastudio api` | `ponte parastudio api` |
 | `pararepo raml`, `atualizar o raml`, `trazer o raml novo` | `ponte pararepo raml` — ver abaixo |
 | `pararepo api` | `ponte pararepo api` |
+| `pararepo force`, `pararepo raml force` | o mesmo, gravando de verdade |
 
 Sem a parte, vao os dois — que e o caso normal, porque uma mudanca no RAML costuma
 implicar mudanca na API.
@@ -55,10 +56,22 @@ pelo resultado:
 Rode o comando direto no terminal e mostre a tabela de resultado ao usuario:
 
 ```bash
-ponte parastudio     # o que voce editou -> workspace do Studio
-ponte pararepo       # workspace do Studio -> seu repositorio
-ponte status         # nao altera nada
+ponte parastudio        # o que voce editou -> workspace do Studio
+ponte pararepo          # workspace do Studio -> seu repositorio (previa)
+ponte pararepo force    # ... e grava
+ponte status            # nao altera nada
 ```
+
+## A palavra `force` e do usuario, nao sua
+
+Nenhum `pararepo` grava sem a palavra `force`. **Nunca acrescente essa palavra por conta
+propria.** Rode sem ela, mostre ao usuario o que aconteceria, e so repita com `force`
+depois de ele confirmar — ou quando ele mesmo tiver digitado a palavra.
+
+E de proposito que a protecao seja uma palavra e nao uma flag: e o comando que escreve no
+repositorio do usuario, e uma palavra a mais no meio de uma conversa e deliberada de um
+jeito que um `--aplicar` no fim da linha nao e. O `parastudio` nao exige nada disso — o
+destino dele e o workspace do Studio, que se reconstroi reimportando o projeto.
 
 Depois do `parastudio` **nao ha passo extra**: o Studio detecta a mudanca no disco e
 redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
@@ -89,7 +102,7 @@ locais. A versao vem do `pom.xml` do lado do Studio, que registra o update feito
 que o projeto do Studio usa. Nao pergunte nada nesse caso — nao ha edicao local para
 preservar, entao nao ha decisao a tomar.
 
-Rode primeiro sem `--aplicar`, que so mostra o que aconteceria:
+Rode primeiro sem `force`, que so mostra o que aconteceria:
 
 ```bash
 ponte pararepo raml
@@ -98,7 +111,7 @@ ponte pararepo raml
 **Se nao houver conflito**, mostre a tabela ao usuario e pergunte se aplica. So entao:
 
 ```bash
-ponte pararepo raml --aplicar
+ponte pararepo raml force
 ```
 
 Lembre o usuario de apontar o `pom.xml` para a versao nova quando for commitar — o comando
@@ -120,7 +133,7 @@ que voce entra. Para cada conflito:
 4. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
    combinacao. Mostre os dois lados e pergunte qual vale.
 5. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
-   rode `ponte pararepo raml --resolvido --aplicar`.
+   rode `ponte pararepo raml force --resolvido`.
 
 O `--resolvido` e obrigatorio nesse segundo passo: sem ele o comando recusa de novo, porque
 a base continua sendo a versao antiga e o texto combinado ainda diverge dos dois lados. A
@@ -145,9 +158,9 @@ quando ha terminal, mas **dentro de uma sessao de agente nao ha** — entao cond
    ponte init
    ```
 
-2. **Onde houver mais de uma opcao, mostre e pergunte ao usuario.** Onde houver uma so, o
-   proprio comando resolve e segue — nao pergunte o que nao tem alternativa. Se o `init`
-   rodou inteiro e gravou a config, nao havia nada a decidir: siga em frente.
+2. **Mostre as opcoes ao usuario e pergunte qual e a correta** — inclusive quando houver um
+   candidato so. O `init` pergunta cada escolha de proposito: um pareamento errado nao da
+   erro na hora, so aparece depois, quando um comando escreve no lugar indevido.
 
 3. Rode de novo com a escolha dele:
 
@@ -163,7 +176,7 @@ workspace nao esta num caminho padrao, e `--force` para refazer uma config exist
 Rode `init` uma vez por repositorio: o resultado fica no `.mule-bridge.toml`.
 
 **Se ele avisar que nao ha pasta de RAML**, repasse a instrucao que ele mesmo deu:
-`ponte pararepo raml --aplicar` cria a pasta com a especificacao que o Studio usa. Nao
+`ponte pararepo raml force` cria a pasta com a especificacao que o Studio usa. Nao
 diga ao usuario que o comando vai falhar — ele cria a pasta.
 
 ## Erros comuns

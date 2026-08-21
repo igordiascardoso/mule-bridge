@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-148%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-164%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -214,8 +214,9 @@ estiver num caminho padrão.
 Daí em diante:
 
 ```bash
-ponte parastudio     # suas edições  ->  Studio
-ponte pararepo       # Studio        ->  seu repositório
+ponte parastudio        # suas edições  ->  Studio
+ponte pararepo          # Studio        ->  seu repositório (prévia)
+ponte pararepo force    # ... e grava
 ```
 
 ## Uso com agentes de IA
@@ -242,9 +243,10 @@ Em qualquer um dos casos, **reinicie a sessão** — as skills são carregadas n
 Depois:
 
 ```
-/ponte parastudio     # suas edições  ->  Studio
-/ponte pararepo       # Studio        ->  seu repositório
-/ponte status         # não altera nada
+/ponte parastudio        # suas edições  ->  Studio
+/ponte pararepo          # Studio        ->  seu repositório (prévia)
+/ponte pararepo force    # ... e grava
+/ponte status            # não altera nada
 ```
 
 A skill não reimplementa nada: ela escolhe o comando certo, roda `--dry-run` antes de
@@ -262,13 +264,16 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 | `ponte parastudio` | Editei RAML **e** código, quero testar tudo | RAML + API | repo → Studio | Pega o RAML e a API do repo e sobrescreve os do Studio |
 | `ponte parastudio raml` | Quero que o Studio leia o RAML que eu edito | só RAML | repo → Studio | Aponta o `pom.xml` do Studio para a sua pasta (ou copia, se houver pasta de RAML no workspace) |
 | `ponte parastudio api` | Mexi só em flow/service/java, quero rodar | só API | repo → Studio | Pega a API do repo e sobrescreve a do Studio |
-| `ponte pararepo` | Raro — quero o Studio inteiro por cima | RAML + API | Studio → repo | ⚠️ Pega o RAML e a API do Studio e apaga suas edições do repo |
-| `ponte pararepo raml` | Saiu versão nova no Exchange | só RAML | Exchange → repo | Pega o RAML novo do Exchange e junta com o do repo, **mantendo o que você editou** |
-| `ponte pararepo api` | O Studio criou flows no scaffold, ou fiz um fix pontual direto no Studio | só API | Studio → repo | Pega a API do Studio e junta com a do repo, **mantendo o que você editou** |
+| `ponte pararepo force` | Raro — quero o Studio inteiro por cima | RAML + API | Studio → repo | ⚠️ Pega o RAML e a API do Studio e apaga suas edições do repo |
+| `ponte pararepo raml force` | Saiu versão nova no Exchange | só RAML | Exchange → repo | Pega o RAML novo do Exchange e junta com o do repo, **mantendo o que você editou** |
+| `ponte pararepo api force` | O Studio criou flows no scaffold, ou fiz um fix pontual direto no Studio | só API | Studio → repo | Pega a API do Studio e junta com a do repo, **mantendo o que você editou** |
+
+> **Os três `pararepo` sem `force` são prévia** — mostram o que fariam e param. A palavra
+> só é exigida deste lado, porque é o que escreve no seu repositório.
 
 > **Sobre o `pararepo` sem parte:** é o único comando que descarta trabalho seu. Use
-> `pararepo raml` e `pararepo api` quando quiser o caminho de volta preservando o que você
-> editou.
+> `pararepo raml force` e `pararepo api force` quando quiser o caminho de volta preservando
+> o que você editou.
 
 **Se você não editou nada no repo**, o `pararepo raml` e o `pararepo api` simplesmente
 trazem o que veio do outro lado — não há nada para preservar, nem conflito possível.
@@ -280,14 +285,31 @@ base**: assim o `git status` fica limpo, e a partir dali mostra só o que **voc�
 não a diferença entre duas versões do Exchange. Esse commit toca apenas a pasta do RAML,
 sem levar nada mais que esteja em curso no repositório.
 
+**`pararepo` só grava com a palavra `force`.**
+
+Este é o comando que escreve no seu repositório, então gravar precisa ser deliberado. Sem
+`force`, ele mostra o que faria e para:
+
+```bash
+ponte pararepo             # prévia
+ponte pararepo force       # grava
+ponte pararepo raml force  # grava só o RAML
+```
+
+A ordem não importa (`pararepo force raml` vale igual), e `forca` também serve. É uma
+palavra em vez de uma flag justamente porque o uso principal é digitado no chat de um
+agente de IA, onde um `--aplicar` no fim da linha passa despercebido. O `parastudio` não
+exige nada disso: o destino dele é o workspace do Studio, que se reconstrói reimportando.
+
 **Flags:**
 
 | Flag | Efeito |
 |---|---|
 | `--dry-run`, `-n` | Mostra o que seria feito, sem alterar nada. |
-| `--aplicar` | Em `pararepo raml` e `pararepo api`: grava. Sem ela, é só prévia. |
+| `--resolvido` | Depois de você combinar um conflito à mão: aceita o que está na pasta. |
 | `--delete` | Remove no destino os arquivos que já não existem na origem. |
 | `--work-root`, `-w` | Roda a partir de outro diretório, em vez do atual. |
+| `--aplicar` | O mesmo que `force`, mantido para quem já usa em script. |
 
 ### O dia a dia
 
@@ -355,10 +377,10 @@ RAML 1.1.54 -> 1.1.55
 │ em conflito               │        0 │
 └───────────────────────────┴──────────┘
 
-Isso foi uma prévia — rode com --aplicar para gravar.
+Isso foi uma prévia — rode ponte pararepo raml force para gravar.
 ```
 
-Com `--aplicar`, grava.
+Com a palavra `force`, grava.
 
 A base limpa sai do cache local do Maven (`~/.m2`), onde o Studio já guarda cada versão
 publicada — não é preciso credencial do Exchange nem estar online.
@@ -382,10 +404,10 @@ O mesmo vale para `pararepo api`, que usa o último commit do repositório como 
 você mudou desde ele é seu, o que aparece diferente do lado do Studio veio de lá.
 
 **Resolvendo um conflito.** Edite o arquivo combinando as duas versões e rode de novo com
-`--resolvido --aplicar` — isso diz "já combinei, aceite o que está na pasta":
+`force --resolvido` — isso diz "já combinei, aceite o que está na pasta":
 
 ```bash
-ponte pararepo raml --resolvido --aplicar
+ponte pararepo raml force --resolvido
 ```
 
 Sem essa flag o comando não aplicaria: para ele, o texto combinado ainda divergia dos dois
@@ -450,7 +472,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 148 testes
+pytest          # 164 testes
 ruff check .    # lint
 ```
 
