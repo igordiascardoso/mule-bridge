@@ -319,13 +319,20 @@ Com `--aplicar`, grava.
 A base limpa sai do cache local do Maven (`~/.m2`), onde o Studio já guarda cada versão
 publicada — não é preciso credencial do Exchange nem estar online.
 
-**Os três casos:**
+**Os casos:**
 
 | Situação | O que acontece |
 |---|---|
 | Você e o outro lado mexeram em pontos diferentes | Junta sozinho, os dois lados preservados |
 | Só um dos lados mexeu | Entra direto, sem cerimônia |
-| **Os dois mudaram a mesma linha** | Para, mostra as duas versões, e **não escreve nada** |
+| Os dois chegaram ao mesmo texto | Não é conflito: é uma mudança só |
+| **Os dois mexeram no mesmo ponto** | Para, mostra as duas versões, e **não escreve nada** |
+| **Os dois acrescentaram no mesmo lugar** | Para: não há como saber qual vem primeiro |
+
+As duas últimas linhas são a mesma regra vista de dois ângulos: a junção resolve enquanto
+as mudanças **não se tocam**. Duas linhas distantes juntam mesmo estando no mesmo arquivo;
+dois blocos acrescentados no fim do arquivo, não — nesse caso a decisão é qual ordem você
+quer, e ela é sua.
 
 O mesmo vale para `pararepo api`, que usa o último commit do repositório como base: o que
 você mudou desde ele é seu, o que aparece diferente do lado do Studio veio de lá.

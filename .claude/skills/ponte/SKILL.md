@@ -110,12 +110,16 @@ O comando lista os arquivos em conflito com os dois lados e **nao escreve nada**
 que voce entra. Para cada conflito:
 
 1. Leia as duas versoes que o comando mostrou (a do usuario e a do Exchange).
-2. **Se as duas intencoes cabem juntas** — ex: um escreveu "Placa no padrao Mercosul" e o
+2. **Se os dois so ACRESCENTARAM coisas diferentes no mesmo lugar** — tipicamente o fim do
+   arquivo, ou dentro do mesmo bloco — nao ha incompatibilidade nenhuma: o conflito existe
+   so porque nao ha como saber a ordem. Proponha manter **os dois**, um depois do outro (o
+   do Exchange primeiro, o do usuario em seguida), e confirme.
+3. **Se as duas intencoes cabem juntas** — ex: um escreveu "Placa no padrao Mercosul" e o
    outro "Placa (obrigatorio)" — proponha um texto que preserve as duas, e **pergunte ao
    usuario** se pode aplicar. Nao aplique calado.
-3. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
+4. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
    combinacao. Mostre os dois lados e pergunte qual vale.
-4. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
+5. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
    rode `ponte pararepo raml --aplicar` de novo.
 
 **Nunca** escolha um lado por conta propria nem descarte a edicao do usuario para "resolver
