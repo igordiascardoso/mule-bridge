@@ -134,6 +134,10 @@ Config gravada em c:\projetos\minha-api\.mule-bridge.toml
 
 O pareamento fica em `.mule-bridge.toml`, na raiz do repositório — o `init` roda uma vez só.
 
+> Esse arquivo guarda o caminho do **seu** workspace, que não serve para os colegas.
+> Adicione-o ao `.gitignore` do projeto.
+
+
 <details>
 <summary>Sem terminal interativo (extensão de IDE, agente de IA, CI)</summary>
 
