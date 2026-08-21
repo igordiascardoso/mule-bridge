@@ -28,6 +28,8 @@ dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
 mcp = ["mcp>=1.2"]
 
 [project.scripts]
+ponte = "mule_bridge.cli:app"
+# nome antigo, mantido para nao quebrar quem ja usava
 mule-bridge = "mule_bridge.cli:app"
 
 [project.urls]

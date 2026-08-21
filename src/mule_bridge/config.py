@@ -66,7 +66,7 @@ def load(work_root: Path) -> BridgeConfig:
     p = config_path(work_root)
     if not p.is_file():
         raise ConfigError(
-            f"Nenhuma config encontrada em {p}. Rode `mule-bridge init` nesta pasta primeiro."
+            f"Nenhuma config encontrada em {p}. Rode `ponte init` nesta pasta primeiro."
         )
     doc = tomlkit.parse(p.read_text(encoding="utf-8"))
 

@@ -37,7 +37,7 @@ repositório sem atropelar o que você editou lá.
 ## A solução
 
 ```console
-$ mule-bridge push
+$ ponte push
 
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┓
 ┃ projeto      ┃ copiados ┃ pom reescrito ┃ removidos ┃ ignorados ┃
@@ -78,6 +78,8 @@ Com [pipx](https://pipx.pypa.io) (recomendado — isola a ferramenta do resto do
 pipx install git+https://github.com/igordiascardoso/mule-bridge
 ```
 
+O pacote chama-se `mule-bridge`; o comando instalado é **`ponte`**.
+
 <details>
 <summary>Alternativas e solução de problemas</summary>
 
@@ -90,7 +92,7 @@ pip install git+https://github.com/igordiascardoso/mule-bridge
 Confirme que ficou disponível no terminal:
 
 ```bash
-mule-bridge --version
+ponte --version
 ```
 
 Se o comando não for encontrado, o diretório de scripts do Python não está no `PATH`.
@@ -103,7 +105,7 @@ Se o comando não for encontrado, o diretório de scripts do Python não está n
 ```bash
 cd /caminho/do/seu/repo    # a raiz, onde ficam a pasta da API e a do RAML
 
-mule-bridge init           # pareia este repositório com um projeto do Studio
+ponte init           # pareia este repositório com um projeto do Studio
 ```
 
 O `init` é **interativo**: ele varre os dois lados, lista o que encontrou e pede que você
@@ -111,7 +113,7 @@ escolha pelo número. Nada é adivinhado — nem qual pasta da API, nem qual pro
 corresponde a ela:
 
 ```console
-$ mule-bridge init
+$ ponte init
 
 Projeto de API nesta pasta de trabalho:
   1. pedidos-api
@@ -139,7 +141,7 @@ O `init` pergunta pelo terminal, mas nem sempre há um. Nesses casos ele lista o
 encontrou e ensina a flag que dispensa o prompt:
 
 ```console
-$ mule-bridge init
+$ ponte init
 
 Projeto de API nesta pasta de trabalho:
   1. pedidos-api
@@ -150,7 +152,7 @@ Repita o comando escolhendo pela flag, ex: --api pedidos-api
 Passando as escolhas, roda sem prompt nenhum:
 
 ```bash
-mule-bridge init --api pedidos-api --raml pedidos-raml \
+ponte init --api pedidos-api --raml pedidos-raml \
   --studio-api minha-api --studio-raml minha-api-raml
 ```
 
@@ -162,8 +164,8 @@ estiver num caminho padrão.
 Daí em diante:
 
 ```bash
-mule-bridge parastudio     # suas edições  ->  Studio
-mule-bridge pararepo       # Studio        ->  seu repositório
+ponte parastudio     # suas edições  ->  Studio
+ponte pararepo       # Studio        ->  seu repositório
 ```
 
 ## Uso com agentes de IA
@@ -179,16 +181,16 @@ Studio"*. Para que o agente saiba que a ferramenta existe num projeto, documente
 os seus projetos:
 
 ```bash
-mkdir -p ~/.claude/skills/mulebridge
-curl -o ~/.claude/skills/mulebridge/SKILL.md   https://raw.githubusercontent.com/igordiascardoso/mule-bridge/main/.claude/skills/mulebridge/SKILL.md
+mkdir -p ~/.claude/skills/ponte
+curl -o ~/.claude/skills/ponte/SKILL.md   https://raw.githubusercontent.com/igordiascardoso/mule-bridge/main/.claude/skills/ponte/SKILL.md
 ```
 
 Depois, dentro de uma sessão do Claude Code:
 
 ```
-/mulebridge parastudio     # suas edições  ->  Studio
-/mulebridge pararepo       # Studio        ->  seu repositório
-/mulebridge status         # não altera nada
+/ponte parastudio     # suas edições  ->  Studio
+/ponte pararepo       # Studio        ->  seu repositório
+/ponte status         # não altera nada
 ```
 
 A skill não reimplementa nada: ela escolhe o comando certo, roda `--dry-run` antes de
@@ -208,9 +210,9 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 As duas direções aceitam uma parte opcional, quando só um lado mudou:
 
 ```bash
-mule-bridge parastudio raml    # só o RAML
-mule-bridge pararepo api       # só a API
-mule-bridge parastudio         # os dois (padrão)
+ponte parastudio raml    # só o RAML
+ponte pararepo api       # só a API
+ponte parastudio         # os dois (padrão)
 ```
 
 **Flags** de `parastudio` e `pararepo`:
@@ -235,7 +237,7 @@ o Studio (*Properties > Mule Project > APIs*) ou um `mvn dependency:get` quem a 
 fonte é a mesma. O `pom.xml` do lado do Studio entra só como desempate.
 
 ```console
-$ mule-bridge pararepo raml
+$ ponte pararepo raml
 
 
 RAML 1.1.54 -> 1.1.55
@@ -262,9 +264,12 @@ publicada — não é preciso credencial do Exchange nem estar online.
 
 | Situação | O que acontece |
 |---|---|
-| Você e o Exchange mexeram em pontos diferentes | Junta sozinho, os dois lados preservados |
+| Você e o outro lado mexeram em pontos diferentes | Junta sozinho, os dois lados preservados |
 | Só um dos lados mexeu | Entra direto, sem cerimônia |
 | **Os dois mudaram a mesma linha** | Para, mostra as duas versões, e **não escreve nada** |
+
+O mesmo vale para `pararepo api`, que usa o último commit do repositório como base: o que
+você mudou desde ele é seu, o que aparece diferente do lado do Studio veio de lá.
 
 No terceiro caso nenhum arquivo é tocado — nem os que deram certo. Sua pasta só é
 alterada quando o resultado inteiro está resolvido, então uma edição sua nunca é
@@ -324,9 +329,10 @@ do `pom.xml`, `config` lembra o pareamento.
 - [x] Sync bidirecional (`push` / `pull`) com `--dry-run`
 - [x] Reescrita do `pom.xml` isolada no workspace do Studio
 - [x] **Reconciliação tipo `git rebase`** para o RAML (`pararepo raml`)
-- [ ] Mesma reconciliação para os arquivos da API (hoje `parastudio`/`pararepo` são cópia
-      direta: se os dois lados alterarem o mesmo arquivo, o último a sincronizar vence)
-- [x] **Skill do Claude Code** — `/mulebridge parastudio` dentro de uma sessão
+- [x] Mesma reconciliação para os arquivos da API (`pararepo api`), usando o último commit
+      como base
+- [ ] Separar o commit do que veio de fora do commit das suas edições
+- [x] **Skill do Claude Code** — `/ponte parastudio` dentro de uma sessão
 - [ ] **MCP server** — os mesmos comandos como ferramentas MCP, para clients que não sejam
       o Claude Code
 - [ ] **`AGENTS.md` de exemplo** — trecho pronto para colar num projeto Mule, para o agente

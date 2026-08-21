@@ -70,6 +70,100 @@ class Reconciliacao:
         return len(self.juntados) + len(self.so_deles) + len(self.conflitos)
 
 
+def base_do_git(pasta: Path, rel: str) -> str | None:
+    """Conteudo de um arquivo como esta no ultimo commit, ou None se nao versionado.
+
+    Para os arquivos da API nao existe um "publicado no Exchange" que sirva de base — o
+    ponto zero comum e o ultimo commit: o que voce mudou desde ele e seu, o que aparece
+    diferente do lado do Studio veio de la.
+    """
+    proc = subprocess.run(
+        ["git", "show", f"HEAD:./{rel}"],
+        cwd=pasta,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def em_repo_git(pasta: Path) -> bool:
+    """True se `pasta` esta dentro de uma arvore git com pelo menos um commit."""
+    proc = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=pasta,
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode == 0
+
+
+def reconciliar_com_git(pasta_local: Path, pasta_studio: Path, ignorar: set[str]) -> Reconciliacao:
+    """Reconcilia a pasta local com a do Studio, usando o ultimo commit como base.
+
+    Mesma logica do RAML, com a base vindo do git em vez do cache do Maven. Arquivos nao
+    versionados nao tem base: se diferem, viram conflito, porque nao ha como saber quem
+    mudou o que.
+    """
+    r = Reconciliacao(versao_base="HEAD", versao_nova="workspace do Studio")
+
+    meus = {
+        p.relative_to(pasta_local).as_posix(): p
+        for p in pasta_local.rglob("*")
+        if p.is_file() and not any(parte in ignorar for parte in p.relative_to(pasta_local).parts)
+    }
+    deles = {
+        p.relative_to(pasta_studio).as_posix(): p
+        for p in pasta_studio.rglob("*")
+        if p.is_file() and not any(parte in ignorar for parte in p.relative_to(pasta_studio).parts)
+    }
+
+    for rel in sorted(set(meus) | set(deles)):
+        meu, novo = _ler(meus.get(rel)), _ler(deles.get(rel))
+
+        if rel not in deles:
+            r.so_meus.append(rel)
+            r.resultado[rel] = meu
+            continue
+        if rel not in meus:
+            r.so_deles.append(rel)
+            r.resultado[rel] = novo
+            continue
+        if meu == novo:
+            r.inalterados.append(rel)
+            r.resultado[rel] = meu
+            continue
+
+        base = base_do_git(pasta_local, rel)
+        if base is None:
+            # Sem base: nao da para saber quem mudou o que, entao nao decidimos sozinhos.
+            r.conflitos.append(
+                Conflito(caminho=rel, base="", meu=meu, novo=novo, merge_marcado="")
+            )
+            continue
+
+        if meu == base:
+            r.so_deles.append(rel)
+            r.resultado[rel] = novo
+            continue
+        if base == novo:
+            r.so_meus.append(rel)
+            r.resultado[rel] = meu
+            continue
+
+        juntado, conflitou = _merge_tres_pontas(meu, base, novo)
+        if conflitou:
+            r.conflitos.append(
+                Conflito(caminho=rel, base=base, meu=meu, novo=novo, merge_marcado=juntado)
+            )
+        else:
+            r.juntados.append(rel)
+            r.resultado[rel] = juntado
+
+    return r
+
+
 def caminho_no_cache(grupo: str, artefato: str, versao: str, m2: Path | None = None) -> Path:
     """Caminho do zip do RAML no cache local do Maven."""
     raiz = m2 or (Path.home() / ".m2" / "repository")

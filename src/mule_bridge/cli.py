@@ -14,7 +14,7 @@ from .errors import BridgeError, ConfigError, DiscoveryError, NonInteractiveErro
 from .sync import Direction, SyncPlan, sync_all
 
 app = typer.Typer(
-    name="mule-bridge",
+    name="ponte",
     help="Sync de projetos Mule entre a pasta de trabalho e o workspace do Anypoint Studio.",
     add_completion=False,
 )
@@ -91,7 +91,7 @@ def main(
     version: bool = typer.Option(False, "--version", help="Mostra a versão e sai."),
 ) -> None:
     if version:
-        console.print(f"mule-bridge {__version__}")
+        console.print(f"ponte (mule-bridge) {__version__}")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         console.print(ctx.get_help())
@@ -308,10 +308,56 @@ def pararepo(
     `pararepo raml` nao e uma copia: ele traz a versao nova do RAML **juntando** com as
     suas edicoes, para que nada do seu trabalho seja sobrescrito.
     """
-    if _parse_parte(parte) == "raml":
+    alvo = _parse_parte(parte)
+    if alvo == "raml":
         _juntar_raml(work_root, aplicar, dry_run)
         return
+    if alvo == "api":
+        _juntar_api(work_root, aplicar, dry_run)
+        return
     _run(Direction.PULL, work_root, delete, dry_run, parte)
+
+
+def _juntar_api(work_root: Path | None, aplicar: bool, dry_run: bool) -> None:
+    """Traz o que mudou na API do lado do Studio, juntando com as edicoes locais.
+
+    A base e o ultimo commit do repositorio. Quando a pasta nao esta versionada nao ha
+    base possivel, e caimos na copia direta de antes — avisando.
+    """
+    try:
+        cfg = _load(_resolve_root(work_root))
+        local = cfg.work_root / cfg.api.work
+        studio = cfg.studio_root / cfg.api.studio
+
+        if not reconcile.em_repo_git(local):
+            console.print(
+                "[yellow]A pasta da API nao esta num repositorio git com commits —[/] "
+                "sem base para juntar, seguindo com copia direta."
+            )
+            _run(Direction.PULL, work_root, False, dry_run, "api")
+            return
+
+        ignorar = set(cfg.excludes) | {"pom.xml"}
+        r = reconcile.reconciliar_com_git(local, studio, ignorar)
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    _report_raml(r, origem="Studio")
+    console.print("[dim]O pom.xml nao entra: o do repo segue apontando para o Exchange.[/]")
+
+    if not r.limpo:
+        console.print(
+            "\n[yellow]Nada foi escrito.[/] Resolva os conflitos acima e rode de novo, "
+            "ou peca ao seu agente de IA para combinar as duas versoes."
+        )
+        raise typer.Exit(1)
+
+    if dry_run or not aplicar:
+        console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
+        return
+
+    escritos = reconcile.aplicar(r, local)
+    console.print(f"\n[green]{escritos} arquivo(s) atualizado(s) em {cfg.api.work}.[/]")
 
 
 @app.command(hidden=True)
@@ -423,14 +469,15 @@ def _versao_alvo(cfg: BridgeConfig, grupo: str, artefato: str, versao_atual: str
     )
 
 
-def _report_raml(r: reconcile.Reconciliacao) -> None:
-    console.print(f"[bold]RAML {r.versao_base} -> {r.versao_nova}[/]\n")
+def _report_raml(r: reconcile.Reconciliacao, origem: str = "Exchange") -> None:
+    rotulo = "API: " if r.versao_base == "HEAD" else "RAML "
+    console.print(f"[bold]{rotulo}{r.versao_base} -> {r.versao_nova}[/]\n")
 
     tabela = Table()
     tabela.add_column("o que")
     tabela.add_column("arquivos", justify="right")
     tabela.add_row("juntados (seu + deles)", str(len(r.juntados)))
-    tabela.add_row("novos, vindos do Exchange", str(len(r.so_deles)))
+    tabela.add_row(f"novos, vindos do {origem}", str(len(r.so_deles)))
     tabela.add_row("so seus, preservados", str(len(r.so_meus)))
     tabela.add_row("sem mudanca", str(len(r.inalterados)))
     tabela.add_row("[red]em conflito[/]", f"[red]{len(r.conflitos)}[/]")
