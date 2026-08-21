@@ -50,9 +50,9 @@ $ ponte parastudio
 O Studio detecta a mudança no disco e **redeploya sozinho**. Sem reimportar, sem refresh,
 sem passo manual.
 
-### Por que não um `cp -r`?
+### Por que não copiar e colar as pastas?
 
-| | `cp` / `robocopy` | `mule-bridge` |
+| | Copiar e colar | `mule-bridge` |
 |---|---|---|
 | Copia os arquivos do projeto | ✅ | ✅ |
 | Ignora `target/`, `.mule`, `.settings` | manual | ✅ automático |
@@ -103,9 +103,9 @@ Se o comando não for encontrado, o diretório de scripts do Python não está n
 ## Começando
 
 ```bash
-cd /caminho/do/seu/repo    # a raiz, onde ficam a pasta da API e a do RAML
+cd c:\projetos\minha-api   # a raiz, onde ficam a pasta da API e a do RAML
 
-ponte init           # pareia este repositório com um projeto do Studio
+ponte init                 # pareia este repositório com um projeto do Studio
 ```
 
 O `init` varre os dois lados e lista o que encontrou. Onde há mais de um candidato, ele
@@ -187,15 +187,18 @@ Studio"*. Para que o agente saiba que a ferramenta existe num projeto, cole o tr
 [docs/AGENTS-exemplo.md](docs/AGENTS-exemplo.md) no `AGENTS.md`/`CLAUDE.md` daquele
 projeto — assim ele sabe quando acionar a ferramenta sem você explicar a cada sessão.
 
-**Com barra, no Claude Code.** Instale a skill uma vez e o comando fica disponível em todos
-os seus projetos:
+**Com barra, no Claude Code.** Instale a skill uma vez e o `/ponte` fica disponível em todos
+os seus projetos. O jeito mais simples é pedir ao próprio Claude Code, numa sessão qualquer:
 
-```bash
-mkdir -p ~/.claude/skills/ponte
-curl -o ~/.claude/skills/ponte/SKILL.md   https://raw.githubusercontent.com/igordiascardoso/mule-bridge/main/.claude/skills/ponte/SKILL.md
-```
+> Instale a skill do mule-bridge em `~/.claude/skills/ponte/SKILL.md`, copiando o conteúdo
+> de https://github.com/igordiascardoso/mule-bridge/blob/main/.claude/skills/ponte/SKILL.md
 
-Depois, dentro de uma sessão do Claude Code:
+Ou baixe o arquivo à mão: crie a pasta `.claude\skills\ponte` dentro do seu diretório de
+usuário (`C:\Users\seu-usuario`) e salve o
+[SKILL.md](.claude/skills/ponte/SKILL.md) lá dentro.
+
+Em qualquer um dos casos, **reinicie a sessão** — as skills são carregadas na abertura.
+Depois:
 
 ```
 /ponte parastudio     # suas edições  ->  Studio
