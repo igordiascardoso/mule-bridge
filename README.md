@@ -205,12 +205,12 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 | `ponte` | Cheguei no projeto e não sei o estado | nada | — | Só olha. Se não estiver pareado, faz o init |
 | `ponte init` | Primeira vez neste projeto (uma vez só) | nada | — | Só grava o `.mule-bridge.toml` |
 | `ponte status` | Ver o pareamento e o que iria pro Studio | nada | — | Só mostra, não escreve |
-| `ponte parastudio` | Editei RAML **e** código, quero testar tudo | RAML + API | repo → Studio | Manda tudo e sobrescreve o que está no Studio |
-| `ponte parastudio raml` | Mexi só no contrato, quero ver o scaffold reagir | só RAML | repo → Studio | Manda o RAML e sobrescreve o do Studio |
-| `ponte parastudio api` | Mexi só em flow/service/java, quero rodar | só API | repo → Studio | Manda a API e sobrescreve a do Studio |
-| `ponte pararepo` | Raro — quero o Studio inteiro por cima | RAML + API | Studio → repo | ⚠️ Apaga suas edições do repo e põe as do Studio |
-| `ponte pararepo raml` | Saiu versão nova no Exchange | só RAML | Exchange → repo | Traz o RAML novo **e mantém o que você editou** |
-| `ponte pararepo api` | O Studio criou flows no scaffold, ou fiz um fix pontual direto no Studio | só API | Studio → repo | Traz o que mudou no Studio **e mantém o que você editou** |
+| `ponte parastudio` | Editei RAML **e** código, quero testar tudo | RAML + API | repo → Studio | Pega o RAML e a API do repo e sobrescreve os do Studio |
+| `ponte parastudio raml` | Mexi só no contrato, quero ver o scaffold reagir | só RAML | repo → Studio | Pega o RAML do repo e sobrescreve o do Studio |
+| `ponte parastudio api` | Mexi só em flow/service/java, quero rodar | só API | repo → Studio | Pega a API do repo e sobrescreve a do Studio |
+| `ponte pararepo` | Raro — quero o Studio inteiro por cima | RAML + API | Studio → repo | ⚠️ Pega o RAML e a API do Studio e apaga suas edições do repo |
+| `ponte pararepo raml` | Saiu versão nova no Exchange | só RAML | Exchange → repo | Pega o RAML novo do Exchange e junta com o do repo, **mantendo o que você editou** |
+| `ponte pararepo api` | O Studio criou flows no scaffold, ou fiz um fix pontual direto no Studio | só API | Studio → repo | Pega a API do Studio e junta com a do repo, **mantendo o que você editou** |
 
 > **Sobre o `pararepo` sem parte:** é o único comando que descarta trabalho seu. Use
 > `pararepo raml` e `pararepo api` quando quiser o caminho de volta preservando o que você
@@ -233,17 +233,17 @@ trazem o que veio do outro lado — não há nada para preservar, nem conflito p
 Você editou o contrato e quer ver o Studio reagir:
 
 ```bash
-ponte parastudio raml     # manda o RAML
+ponte parastudio raml     # pega o RAML do repo e manda pro Studio
 # o Studio roda o scaffold e cria os flows novos
-ponte pararepo api        # traz os flows, sem perder seu código
+ponte pararepo api        # pega a API do Studio e traz pro repo, sem perder seu código
 git commit
 ```
 
 Um colega publicou uma versão nova no Exchange:
 
 ```bash
-ponte pararepo raml       # traz a versão nova, mantendo suas edições
-ponte parastudio          # manda tudo pro Studio testar
+ponte pararepo raml       # pega o RAML novo do Exchange e junta com o do repo
+ponte parastudio          # pega o RAML e a API do repo e manda pro Studio testar
 git commit
 ```
 
