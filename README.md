@@ -92,15 +92,17 @@ O merge escreve **no seu repositório**, e só nele. O workspace do Studio não 
 | `pararepo raml` | a versão nova do RAML, do Exchange | a sua pasta do RAML (`pedidos-raml/`) |
 | `pararepo api` | o que está no workspace do Studio | a sua pasta da API (`pedidos-api/`) |
 
-Arquivo por arquivo, dentro dessa pasta:
+Para cada arquivo dessa pasta, ele compara a **sua versão** (a que está no repositório) com a
+**versão que chegou** (do Exchange, ou do workspace):
 
-| A situação | O que ele faz |
+| O que aconteceu com o arquivo | O que fica gravado no seu repositório |
 |---|---|
-| Você mexeu no arquivo, o outro lado não | mantém o seu, sem abrir |
-| O outro lado mexeu, você não | escreve a versão dele por cima da sua |
-| Os dois mexeram, **em lugares diferentes** do arquivo | escreve um arquivo com as duas mudanças |
-| Os dois mexeram **na mesma linha** | **pergunta a você** qual das duas fica |
-| O arquivo existe só de um lado | se é seu, fica; se é dele, é criado na sua pasta |
+| só você editou | a sua, intacta — ele nem abre o arquivo |
+| só a versão que chegou mudou | a que chegou, no lugar da sua |
+| os dois mudaram, **em linhas diferentes** | um arquivo com as duas mudanças dentro |
+| os dois mudaram, **na mesma linha** | ele **pergunta**: a sua, a que chegou, ou o que você digitar |
+| existe só no seu repositório | a sua, onde está — não é apagada |
+| existe só do outro lado | a que chegou, criada na sua pasta |
 
 **Só a mesma linha precisa de você.** Aí ele mostra os dois lados e espera:
 
