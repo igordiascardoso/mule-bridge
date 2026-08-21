@@ -256,49 +256,65 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 
 ## Comandos
 
-| Comando | Para quê | Mexe em | Direção | O que faz |
-|---|---|---|---|---|
-| `ponte` | Cheguei no projeto e não sei o estado | nada | — | Só olha. Se não estiver pareado, faz o init |
-| `ponte init` | Primeira vez neste projeto (uma vez só) | nada | — | Só grava o `.mule-bridge.toml` |
-| `ponte status` | Ver o pareamento e o que iria pro Studio | nada | — | Só mostra, não escreve |
-| `ponte parastudio` | Editei RAML **e** código, quero testar tudo | RAML + API | repo → Studio | Pega o RAML e a API do repo e sobrescreve os do Studio |
-| `ponte parastudio raml` | Quero que o Studio leia o RAML que eu edito | só RAML | repo → Studio | Aponta o `pom.xml` do Studio para a sua pasta (ou copia, se houver pasta de RAML no workspace) |
-| `ponte parastudio api` | Mexi só em flow/service/java, quero rodar | só API | repo → Studio | Pega a API do repo e sobrescreve a do Studio |
-| `ponte pararepo force` | Raro — quero o Studio inteiro por cima | RAML + API | Studio → repo | ⚠️ Pega o RAML e a API do Studio e apaga suas edições do repo |
-| `ponte pararepo raml force` | Saiu versão nova no Exchange | só RAML | Exchange → repo | Pega o RAML novo do Exchange e junta com o do repo, **mantendo o que você editou** |
-| `ponte pararepo api force` | O Studio criou flows no scaffold, ou fiz um fix pontual direto no Studio | só API | Studio → repo | Pega a API do Studio e junta com a do repo, **mantendo o que você editou** |
+Os comandos estão agrupados abaixo por **onde escrevem**, que é a única coisa que importa
+saber antes de rodar qualquer um. A regra que resume tudo:
 
-> **Os três `pararepo` sem `force` são prévia** — mostram o que fariam e param. A palavra
-> só é exigida deste lado, porque é o que escreve no seu repositório.
+> **Seu repositório só é escrito quando você digita `force`.**
+> Sem essa palavra, nenhum comando altera um arquivo seu. E o `parastudio` nunca escreve
+> aqui — ele só escreve no workspace do Studio.
 
-> **Sobre o `pararepo` sem parte:** é o único comando que descarta trabalho seu. Use
-> `pararepo raml force` e `pararepo api force` quando quiser o caminho de volta preservando
-> o que você editou.
+### Os que não alteram nada
+
+| Comando | O que faz |
+|---|---|
+| `ponte` | Mostra a ajuda. Se o projeto não estiver pareado, conduz o `init` |
+| `ponte init` | Pareia o repositório com um projeto do Studio. Grava só o `.mule-bridge.toml` |
+| `ponte status` | Mostra o pareamento e o que iria para o Studio |
+| `ponte pararepo` | Mostra o que viria do Studio — e para |
+| `ponte pararepo raml` | Mostra como ficaria a junção com o RAML novo do Exchange |
+| `ponte pararepo api` | Mostra como ficaria a junção com o que o Studio alterou |
+
+### Os que escrevem no workspace do Studio
+
+Estes gravam na hora, sem pedir. **Nenhum deles toca no seu repositório** — o destino é a
+pasta onde o Studio roda, que se reconstrói reimportando o projeto.
+
+| Comando | Quando usar | O que faz |
+|---|---|---|
+| `ponte parastudio` | Editei o RAML **e** o código, quero testar tudo | Copia o RAML e a API para o Studio |
+| `ponte parastudio raml` | Quero que o Studio leia o RAML que eu edito | Aponta o `pom.xml` **do Studio** para a sua pasta local |
+| `ponte parastudio api` | Mexi só em flow, service ou java | Copia a API para o Studio |
+
+Depois de qualquer um deles **não há passo extra**: o Studio detecta a mudança no disco e
+redeploya sozinho.
+
+### Os que escrevem no seu repositório
+
+Só estes precisam de `force`, porque só estes mexem nos seus arquivos versionados.
+
+| Comando | Quando usar | O que faz |
+|---|---|---|
+| `ponte pararepo raml force` | Saiu versão nova do RAML no Exchange | Traz a versão nova **juntando** com o que você editou |
+| `ponte pararepo api force` | O Studio gerou flows no scaffold, ou fiz um fix nele | Traz o que mudou **juntando** com o que você editou |
+| `ponte pararepo force` | Raro — quero o Studio inteiro por cima | ⚠️ Copia por cima, **sem juntar**: descarta suas edições |
+
+Os dois primeiros **preservam seu trabalho**: se você editou o mesmo arquivo, as duas
+versões são combinadas, e onde não houver combinação possível o comando para e pergunta.
+O terceiro é cópia bruta — é o único que descarta trabalho seu, e por isso quase nunca é o
+que você quer.
+
+A ordem das palavras não importa: `pararepo force raml` e `pararepo raml force` são a mesma
+coisa. `forca` também serve.
 
 **Se você não editou nada no repo**, o `pararepo raml` e o `pararepo api` simplesmente
 trazem o que veio do outro lado — não há nada para preservar, nem conflito possível.
 
-**Se a pasta do RAML nem existir**, o `pararepo raml` a cria na raiz do repositório,
+**Se a pasta do RAML nem existir**, o `pararepo raml force` a cria na raiz do repositório,
 extraindo a versão que o projeto do Studio usa — útil num projeto novo, ou quando a pasta
 se perdeu. O pareamento é atualizado junto, e a pasta recém-criada é **commitada como
 base**: assim o `git status` fica limpo, e a partir dali mostra só o que **você** editar,
 não a diferença entre duas versões do Exchange. Esse commit toca apenas a pasta do RAML,
 sem levar nada mais que esteja em curso no repositório.
-
-**`pararepo` só grava com a palavra `force`.**
-
-Este é o comando que escreve no seu repositório, então gravar precisa ser deliberado. Sem
-`force`, ele mostra o que faria e para:
-
-```bash
-ponte pararepo             # mostra o que viria
-ponte pararepo force       # traz
-ponte pararepo raml force  # traz só o RAML
-```
-
-A ordem não importa (`pararepo force raml` vale igual) e `forca` também serve. O
-`parastudio` não exige nada disso: o destino dele é o workspace do Studio, que se
-reconstrói reimportando o projeto.
 
 **O vocabulário inteiro são quatro palavras:** `raml`, `api`, `force` e `resolvido`. Não há
 mais nada para lembrar — e é de propósito, porque cada palavra a mais é uma coisa a mais
@@ -318,8 +334,9 @@ git commit
 Um colega publicou uma versão nova no Exchange:
 
 ```bash
-ponte pararepo raml       # pega o RAML novo do Exchange e junta com o do repo
-ponte parastudio          # pega o RAML e a API do repo e manda pro Studio testar
+ponte pararepo raml         # mostra como ficaria a junção
+ponte pararepo raml force   # junta de verdade
+ponte parastudio            # manda o RAML e a API pro Studio testar
 git commit
 ```
 
@@ -396,15 +413,15 @@ quer, e ela é sua.
 O mesmo vale para `pararepo api`, que usa o último commit do repositório como base: o que
 você mudou desde ele é seu, o que aparece diferente do lado do Studio veio de lá.
 
-**Resolvendo um conflito.** Edite o arquivo combinando as duas versões e rode de novo com
-`force --resolvido` — isso diz "já combinei, aceite o que está na pasta":
+**Resolvendo um conflito.** Edite o arquivo combinando as duas versões e rode de novo
+acrescentando `resolvido` — isso diz "já combinei, aceite o que está na pasta":
 
 ```bash
-ponte pararepo raml force --resolvido
+ponte pararepo raml force resolvido
 ```
 
-Sem essa flag o comando não aplicaria: para ele, o texto combinado ainda divergia dos dois
-lados, e ele repetiria o mesmo conflito para sempre. Depois de aplicar, aponte o `pom.xml`
+Sem essa palavra o comando não aplicaria: para ele, o texto combinado ainda divergia dos
+dois lados, e ele repetiria o mesmo conflito para sempre. Depois de aplicar, aponte o `pom.xml`
 para a versão nova — é isso que fecha o ciclo e encerra o aviso.
 
 **O que vem de fora é commitado à parte.** Ao aplicar, os arquivos que chegaram do

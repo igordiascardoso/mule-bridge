@@ -486,7 +486,10 @@ def _apontar_raml_local(cfg: BridgeConfig, dry_run: bool) -> None:
 
     console.print(f"[bold]Apontando o Studio para {raml_dir}[/]")
     if dry_run:
-        console.print("\n[dim]Isso foi uma previa — rode sem --dry-run para aplicar.[/]")
+        console.print(
+            "\n[dim]Isso foi uma previa — rode [bold]ponte parastudio raml[/bold] "
+            "para apontar de verdade.[/]"
+        )
         return
 
     if pomrewrite.point_to_local_raml(pom, raml_dir):
@@ -542,48 +545,19 @@ def _juntar_api(
             raise typer.Exit(1)
         resolucoes = reconcile.resolucoes_do_disco(r, local)
         console.print(
-            f"\n[yellow]--resolvido:[/] aceitando o que esta em {cfg.api.work} "
+            f"\n[yellow]resolvido:[/] aceitando o que esta em {cfg.api.work} "
             f"para {', '.join(sorted(resolucoes))}."
         )
 
     if dry_run or not aplicar:
-        console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
+        console.print(
+            "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo api force[/bold] "
+            "para gravar.[/]"
+        )
         return
 
     escritos = reconcile.aplicar(r, local, resolucoes=resolucoes)
     console.print(f"\n[green]{escritos} arquivo(s) atualizado(s) em {cfg.api.work}.[/]")
-
-
-@app.command(hidden=True)
-def push(
-    parte: str | None = typer.Argument(None),
-    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    delete: bool = typer.Option(False, "--delete"),
-    dry_run: bool = typer.Option(False, "--dry-run", "-n"),
-) -> None:
-    """Apelido de `parastudio`, mantido para nao quebrar quem ja usava."""
-    _run(Direction.PUSH, work_root, delete, dry_run, parte)
-
-
-@app.command(hidden=True)
-def pull(
-    parte: str | None = typer.Argument(None),
-    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    delete: bool = typer.Option(False, "--delete"),
-    dry_run: bool = typer.Option(False, "--dry-run", "-n"),
-) -> None:
-    """Apelido de `pararepo`, mantido para nao quebrar quem ja usava."""
-    _run(Direction.PULL, work_root, delete, dry_run, parte)
-
-
-@app.command(hidden=True)
-def juntarraml(
-    versao_nova: str | None = typer.Argument(None),
-    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    aplicar: bool = typer.Option(False, "--aplicar"),
-) -> None:
-    """Apelido de `pararepo raml`, mantido para nao quebrar quem ja usava."""
-    _juntar_raml(work_root, aplicar, False, versao_nova)
 
 
 def _juntar_raml(
@@ -647,12 +621,15 @@ def _juntar_raml(
         # O usuario afirma ter combinado: o conteudo em disco passa a ser a resolucao.
         resolucoes = reconcile.resolucoes_do_disco(r, pasta_raml)
         console.print(
-            f"\n[yellow]--resolvido:[/] aceitando o que esta em {cfg.raml.work} "
+            f"\n[yellow]resolvido:[/] aceitando o que esta em {cfg.raml.work} "
             f"para {', '.join(sorted(resolucoes))}."
         )
 
     if dry_run or not aplicar:
-        console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
+        console.print(
+            "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo raml force[/bold] "
+            "para gravar.[/]"
+        )
         return
 
     escritos, commitou = reconcile.aplicar_em_dois_commits(
@@ -711,7 +688,10 @@ def _criar_pasta_raml(cfg: BridgeConfig, grupo: str, artefato: str, previa: bool
     console.print(f"  destino: {destino}")
 
     if previa:
-        console.print("\n[dim]Isso foi uma previa — rode com --aplicar para criar.[/]")
+        console.print(
+            "\n[dim]Isso foi uma previa — rode [bold]ponte pararepo raml force[/bold] "
+            "para criar.[/]"
+        )
         return
 
     reconcile.extrair(reconcile.caminho_no_cache(grupo, artefato, versao), destino)
