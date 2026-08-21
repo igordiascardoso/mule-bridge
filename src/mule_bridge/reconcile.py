@@ -80,14 +80,30 @@ def commitar_base(repo: Path, pasta_rel: str, mensagem: str) -> bool:
     if not em_repo_git(repo):
         return False
 
+    # `-c core.safecrlf=false` cala o aviso de LF/CRLF, que nao diz nada sobre o resultado
+    # e, sendo ruido na saida, ja foi lido como se o commit tivesse falhado.
     add = subprocess.run(
-        ["git", "add", "--", pasta_rel], cwd=repo, capture_output=True, text=True
+        ["git", "-c", "core.safecrlf=false", "add", "--", pasta_rel],
+        cwd=repo,
+        capture_output=True,
+        text=True,
     )
     if add.returncode != 0:
         return False
 
     proc = subprocess.run(
-        ["git", "commit", "--only", "--no-verify", "-m", mensagem, "--", pasta_rel],
+        [
+            "git",
+            "-c",
+            "core.safecrlf=false",
+            "commit",
+            "--only",
+            "--no-verify",
+            "-m",
+            mensagem,
+            "--",
+            pasta_rel,
+        ],
         cwd=repo,
         capture_output=True,
         text=True,
@@ -97,7 +113,12 @@ def commitar_base(repo: Path, pasta_rel: str, mensagem: str) -> bool:
     if proc.returncode == 0:
         return True
 
-    motivo = (proc.stderr or proc.stdout or "").strip().splitlines()
+    saida = (proc.stdout or "") + (proc.stderr or "")
+    if "nothing to commit" in saida or "nothing added" in saida:
+        # Nada a commitar nao e falha: a base ja era exatamente esta.
+        return True
+
+    motivo = saida.strip().splitlines()
     raise ReconcileError(
         "Nao foi possivel commitar a base: " + (motivo[-1] if motivo else "erro do git")
     )

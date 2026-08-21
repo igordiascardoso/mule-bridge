@@ -229,3 +229,34 @@ def test_mais_novas_que_compara_numericamente():
     """1.1.9 e anterior a 1.1.10, ainda que a ordem alfabetica diga o contrario."""
     assert reconcile.mais_novas_que(["1.1.9", "1.1.10"], "1.1.9") == ["1.1.10"]
     assert reconcile.mais_novas_que(["1.1.9", "1.1.10"], "1.1.10") == []
+
+
+def test_commitar_base_sem_nada_a_commitar_nao_e_falha(tmp_path):
+    """Se a base ja era exatamente essa, nao ha commit — e isso nao e erro.
+
+    Regressao: `False` aqui era reportado como "nao commitei", o que se lia como falha.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    (repo / "raml").mkdir(parents=True)
+    (repo / "raml" / "api.raml").write_text(BASE, encoding="utf-8")
+
+    for cmd in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "-m", "base"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True)
+
+    # Nada mudou desde o commit.
+    assert reconcile.commitar_base(repo, "raml", "chore: base") is True
+
+
+def test_commitar_base_fora_de_repo_git(tmp_path):
+    pasta = tmp_path / "solta"
+    (pasta / "raml").mkdir(parents=True)
+
+    assert reconcile.commitar_base(pasta, "raml", "chore: base") is False

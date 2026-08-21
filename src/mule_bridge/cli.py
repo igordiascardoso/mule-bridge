@@ -524,14 +524,18 @@ def _criar_pasta_raml(cfg: BridgeConfig, grupo: str, artefato: str, previa: bool
         if reconcile.commitar_base(
             cfg.work_root, nome, f"chore(raml): base da especificacao {artefato} {versao}"
         ):
-            console.print(f"[green]Commitado como base ({versao}) — o git parte daqui.[/]")
+            console.print(
+                f"[green]Pronto:[/] {nome} esta na {versao} e commitada como base.\n"
+                "[dim]O git esta limpo — daqui em diante ele mostra so o que voce editar.[/]"
+            )
         else:
             console.print(
-                f"[dim]{nome} nao esta sob git — sem commit de base, o que e esperado.[/]"
+                f"[green]Pronto:[/] {nome} esta na {versao}.\n"
+                f"[dim]{nome} nao esta sob git, entao nao ha base a commitar.[/]"
             )
     except BridgeError as exc:
-        console.print(f"[yellow]Arquivos extraidos, mas nao commitados:[/] {exc}")
-        console.print(f"[dim]Commite quando quiser: git add {nome} && git commit[/]")
+        console.print(f"[yellow]Os arquivos estao no disco, mas nao commitei a base:[/] {exc}")
+        console.print(f"[dim]Para commitar: git add {nome} && git commit[/]")
 
 
 def _versao_alvo(cfg: BridgeConfig, grupo: str, artefato: str, versao_atual: str) -> str:
