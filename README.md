@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-58%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-138%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -395,7 +395,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 58 testes
+pytest          # 138 testes
 ruff check .    # lint
 ```
 
