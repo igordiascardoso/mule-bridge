@@ -93,13 +93,18 @@ def test_pararepo_so_raml(cfg, workspace):
     assert "veio do Studio" in local.read_text(encoding="utf-8")
 
 
-def test_parastudio_raml_sem_pasta_no_studio_nao_copia(cfg, workspace):
-    """Sem pasta correspondente no workspace, copiar criaria lixo que ninguem le."""
+def test_parastudio_raml_sem_pasta_no_studio_aponta_o_pom(cfg, workspace):
+    """Sem pasta no workspace, "mandar o RAML" e apontar o pom.xml para a pasta local.
+
+    O Studio consome o RAML como dependencia do Exchange: copiar criaria uma pasta que
+    ninguem le, enquanto a referencia no pom.xml e o que o faz ler o RAML editado.
+    """
     import shutil
 
     from typer.testing import CliRunner
 
     from mule_bridge import config as configmod
+    from mule_bridge import pomrewrite
     from mule_bridge.cli import app
 
     shutil.rmtree(workspace["studio"] / "studio-pedidos-raml")
@@ -111,5 +116,31 @@ def test_parastudio_raml_sem_pasta_no_studio_nao_copia(cfg, workspace):
     )
 
     assert result.exit_code == 0, result.output
-    assert "nao copiei nada" in result.output
-    assert not (workspace["studio"] / "studio-pedidos-raml").exists(), "nao pode criar"
+    pom_studio = workspace["studio"] / "studio-pedidos" / "pom.xml"
+    assert pomrewrite.has_local_pointer(pom_studio), "o pom do Studio deve apontar local"
+    assert str(workspace["work"] / "pedidos-raml") in pom_studio.read_text(encoding="utf-8")
+
+    pom_repo = workspace["work"] / "pedidos-api" / "pom.xml"
+    assert not pomrewrite.has_local_pointer(pom_repo), "o pom do repo nao pode ser tocado"
+    assert not (workspace["studio"] / "studio-pedidos-raml").exists(), "nao cria pasta"
+
+
+def test_parastudio_raml_ja_apontado_nao_repete(cfg, workspace):
+    """Rodar de novo nao deve reescrever nem confundir: so confirma que ja esta ligado."""
+    import shutil
+
+    from typer.testing import CliRunner
+
+    from mule_bridge import config as configmod
+    from mule_bridge.cli import app
+
+    shutil.rmtree(workspace["studio"] / "studio-pedidos-raml")
+    cfg.raml = ProjectPair("pedidos-raml", "studio-pedidos-raml")
+    configmod.save(cfg)
+    args = ["parastudio", "raml", "-w", str(workspace["work"])]
+
+    CliRunner().invoke(app, args, input="")
+    segunda = CliRunner().invoke(app, args, input="")
+
+    assert segunda.exit_code == 0
+    assert "ja le o RAML" in segunda.output

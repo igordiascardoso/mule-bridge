@@ -319,14 +319,10 @@ def parastudio(
         except BridgeError as exc:
             raise _fail(exc) from exc
         if cfg.raml is not None and not (cfg.studio_root / cfg.raml.studio).is_dir():
-            # O Studio costuma consumir o RAML como dependencia, sem pasta propria: o
-            # `pom.xml` de la ja aponta para a pasta do repo. Copiar criaria lixo que
-            # ninguem le.
-            console.print(
-                f"[yellow]{cfg.raml.studio} nao existe no workspace — nao copiei nada.[/]\n"
-                "[dim]O Studio le o RAML da sua pasta pelo systemPath do pom.xml, "
-                "escrito pelo `parastudio api`. Nao ha o que mandar.[/]"
-            )
+            # O Studio consome o RAML como dependencia, sem pasta propria no workspace:
+            # copiar criaria lixo que ninguem le. O que faz ele enxergar o RAML editado e
+            # a referencia no `pom.xml`, entao e ela que apontamos aqui.
+            _apontar_raml_local(cfg, dry_run)
             return
     _run(Direction.PUSH, work_root, delete, dry_run, parte)
 
@@ -358,6 +354,44 @@ def pararepo(
         _juntar_api(work_root, aplicar, dry_run)
         return
     _run(Direction.PULL, work_root, delete, dry_run, parte)
+
+
+def _apontar_raml_local(cfg: BridgeConfig, dry_run: bool) -> None:
+    """Aponta o `pom.xml` do Studio para a pasta local do RAML.
+
+    Quando o Studio consome o RAML como dependencia do Exchange, nao ha pasta para onde
+    copiar — o que o faz ler o RAML editado e a referencia no `pom.xml`. Entao "mandar o
+    RAML para o Studio" e, aqui, apontar essa referencia para a sua pasta.
+    """
+    raml_dir = cfg.work_root / cfg.raml.work
+    pom = cfg.studio_root / cfg.api.studio / "pom.xml"
+
+    if not pom.is_file():
+        raise ConfigError(f"Nao achei o pom.xml do projeto no Studio: {pom}")
+
+    if pomrewrite.has_local_pointer(pom):
+        console.print(
+            f"[green]O Studio ja le o RAML de {cfg.raml.work}.[/]\n"
+            "[dim]Edite a pasta e salve — ele detecta a mudanca e redeploya sozinho.[/]"
+        )
+        return
+
+    console.print(f"[bold]Apontando o Studio para {raml_dir}[/]")
+    if dry_run:
+        console.print("\n[dim]Isso foi uma previa — rode sem --dry-run para aplicar.[/]")
+        return
+
+    if pomrewrite.point_to_local_raml(pom, raml_dir):
+        console.print(
+            "[green]Pronto:[/] o Studio agora le o RAML da sua pasta.\n"
+            "[dim]A dependencia do Exchange ficou preservada como comentario no pom.xml "
+            "do workspace. O do repo nao foi tocado.[/]"
+        )
+    else:
+        console.print(
+            "[yellow]O pom.xml do Studio nao referencia um RAML do Exchange[/] — "
+            "nao havia o que apontar."
+        )
 
 
 def _juntar_api(work_root: Path | None, aplicar: bool, dry_run: bool) -> None:

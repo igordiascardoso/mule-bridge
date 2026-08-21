@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-55%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -215,7 +215,7 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 | `ponte init` | Primeira vez neste projeto (uma vez só) | nada | — | Só grava o `.mule-bridge.toml` |
 | `ponte status` | Ver o pareamento e o que iria pro Studio | nada | — | Só mostra, não escreve |
 | `ponte parastudio` | Editei RAML **e** código, quero testar tudo | RAML + API | repo → Studio | Pega o RAML e a API do repo e sobrescreve os do Studio |
-| `ponte parastudio raml` | Mexi só no contrato, quero ver o scaffold reagir | só RAML | repo → Studio | Pega o RAML do repo e sobrescreve o do Studio |
+| `ponte parastudio raml` | Quero que o Studio leia o RAML que eu edito | só RAML | repo → Studio | Aponta o `pom.xml` do Studio para a sua pasta (ou copia, se houver pasta de RAML no workspace) |
 | `ponte parastudio api` | Mexi só em flow/service/java, quero rodar | só API | repo → Studio | Pega a API do repo e sobrescreve a do Studio |
 | `ponte pararepo` | Raro — quero o Studio inteiro por cima | RAML + API | Studio → repo | ⚠️ Pega o RAML e a API do Studio e apaga suas edições do repo |
 | `ponte pararepo raml` | Saiu versão nova no Exchange | só RAML | Exchange → repo | Pega o RAML novo do Exchange e junta com o do repo, **mantendo o que você editou** |
@@ -261,6 +261,25 @@ git commit
 ```
 
 ## Como a junção funciona
+
+### `parastudio raml` — faz o Studio ler o RAML que você edita
+
+Na maioria dos projetos o Studio consome o RAML como dependência do Exchange, sem pasta
+própria no workspace — copiar arquivos para lá criaria uma pasta que ninguém lê. O que faz
+o Studio enxergar suas edições é a referência no `pom.xml`, e é ela que este comando
+aponta para a sua pasta:
+
+```console
+$ ponte parastudio raml
+
+Apontando o Studio para C:\projetos\minha-api\pedidos-raml
+Pronto: o Studio agora lê o RAML da sua pasta.
+```
+
+Feito isso, você edita o RAML e salva — o Studio detecta e redeploya, sem mais comandos.
+
+Se o workspace tiver uma pasta de RAML de verdade (projetos onde a especificação é
+importada como projeto próprio), o comando copia os arquivos normalmente.
 
 ### `pararepo raml` — a versão nova sem perder o que você escreveu
 
@@ -360,7 +379,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 54 testes
+pytest          # 55 testes
 ruff check .    # lint
 ```
 

@@ -22,7 +22,7 @@ Cada direcao aceita uma parte opcional, quando o usuario quer mover so um lado:
 
 | O usuario digita | Comando |
 |---|---|
-| `parastudio raml` | `ponte parastudio raml` |
+| `parastudio raml` | `ponte parastudio raml` — aponta o pom.xml do Studio para a pasta local do RAML, ou copia se houver pasta no workspace |
 | `parastudio api` | `ponte parastudio api` |
 | `pararepo raml`, `atualizar o raml`, `trazer o raml novo` | `ponte pararepo raml` — ver abaixo |
 | `pararepo api` | `ponte pararepo api` |
