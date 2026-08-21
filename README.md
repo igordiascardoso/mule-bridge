@@ -25,18 +25,9 @@ ponte pararepo             recusa: falta a palavra
 
 **`parastudio` escreve no workspace. `pararepo` escreve no seu repositório.**
 
-Três palavras: `raml`, `api`, `force`. Uma é obrigatória — sem ela o comando recusa em vez
-de adivinhar.
-
-**`raml` e `api` fazem merge**, como um `git merge`. Arquivo que só você editou fica como
-está. Arquivo novo que você criou continua lá. Arquivo que os dois mexeram é combinado
-linha por linha — e se as mudanças se cruzarem na mesma linha, ele pergunta antes de gravar.
-
-**`force` copia por cima, sem merge.** É a única palavra que pode fazer trabalho
-desaparecer, e em `pararepo` o trabalho é o seu. Raramente é o que você quer.
-
-Não se combinam: `pararepo raml force` é recusado — fazer merge e sobrescrever são
-decisões opostas.
+Três palavras: `raml`, `api`, `force` — uma é obrigatória. `raml` e `api` fazem merge e não
+perdem nada do seu trabalho; `force` copia por cima e pode apagá-lo, então raramente é o que
+você quer. Não se combinam: `pararepo raml force` é recusado.
 
 Mais dois:
 
@@ -53,13 +44,12 @@ ponte init
 ```
 
 Ele acha os projetos dos dois lados e pergunta cada escolha — inclusive quando há um
-candidato só, porque um pareamento errado só aparece depois, quando um comando escreve no
-lugar indevido.
+candidato só, porque um pareamento errado só aparece muito depois.
 
-O resultado fica no `.mule-bridge.toml`. **Adicione ao `.gitignore`**: guarda o caminho do
-seu workspace, que não serve para os colegas.
+O resultado fica no `.mule-bridge.toml`. **Adicione ao `.gitignore`**: é o caminho do *seu*
+workspace.
 
-Sem terminal para responder (agente de IA, extensão de IDE, CI), passe por flag:
+Sem terminal para responder (agente de IA, IDE, CI), passe por flag:
 
 ```bash
 ponte init --api pedidos-api --raml pedidos-raml \
@@ -91,74 +81,59 @@ e redeploya sozinho.
 
 ## O merge
 
-É um merge de três pontas, o mesmo que o git faz: compara **três** versões do arquivo, não
-duas — a base (como estava antes de qualquer um mexer), a sua, e a que chegou. Com a base dá
-para saber quem mudou o quê, e por isso as duas mudanças podem ficar em vez de uma vencer.
+`pararepo raml` e `pararepo api` não copiam por cima — eles fazem merge, como um `git merge`.
 
-A base vem do cache local do Maven (`~/.m2`) no `pararepo raml`, e do último commit do seu
-repositório no `pararepo api`.
+Cada arquivo cai num destes casos:
 
-### O que o comando mostra
+- os dois mexeram em **pontos diferentes** → ficam as duas mudanças
+- **só existe** do outro lado → entra
+- **só você** editou ou criou → ele não chega perto
+- os dois mexeram na **mesma linha** → ele pergunta qual fica
+
+No fim ele imprime quantos arquivos caíram em cada caso, e quantos foram gravados.
+
+Se a pasta do RAML ainda não existe, não há merge a fazer: `pararepo raml` extrai a versão
+que o Studio usa para uma pasta nova na raiz, e para.
+
+### Quando ele pergunta
 
 ```console
-$ ponte pararepo raml
+api.raml — as duas versoes mexeram nas mesmas linhas
 
-RAML 1.1.54 -> 1.1.55
+1. a sua versao (a que esta no repositorio):
+     meu: string
 
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
-┃ o que                     ┃ arquivos ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
-│ merge (seu + o que veio)  │        2 │
-│ novos, vindos do Exchange │        7 │
-│ só seus, intocados        │        1 │
-│ sem mudança               │       15 │
-│ em conflito               │        0 │
-└───────────────────────────┴──────────┘
+2. a versao que veio:
+     novo: string
 
-10 arquivo(s) atualizado(s) em pedidos-raml.
+Fica qual? 1 = a sua, 2 = a que veio, 3 = eu escrevo [1]:
 ```
 
-| A linha | Quer dizer |
-|---|---|
-| merge | os dois mexeram, em lugares diferentes — ficaram as duas mudanças |
-| novos, vindos do Exchange | só existe do outro lado — entra |
-| **só seus, intocados** | **só você editou, ou só você criou — não é tocado** |
-| sem mudança | ninguém mexeu |
-| **em conflito** | **os dois mexeram na mesma linha — precisa de decisão** |
+Você responde e ele grava. **Não fica marcador `<<<<<<<` no arquivo** e não há segundo
+comando — responder é o que resolve.
 
-Zero em conflito quer dizer que o merge resolveu tudo sozinho.
+Num agente de IA, onde não há terminal para digitar, ele mostra as duas versões e **não grava
+nada**. O agente combina e roda de novo.
 
-### Quando há conflito
+### Depois
 
-Ele mostra os dois lados e pergunta: `1` a sua, `2` a que veio, `3` você digita o texto
-final. Responde e ele grava.
+No `pararepo raml`, o que veio do Exchange e você não tinha tocado é **commitado sozinho**
+(`chore(raml): especificacao pedidos 1.1.55`) — senão dezenas de arquivos de fora se
+misturariam com as suas duas linhas no `git status`. O resto fica sem commit, para você
+revisar. Falta subir a versão no `pom.xml`, que o comando não mexe.
 
-**Nunca fica marcador `<<<<<<<` no arquivo**, e não existe segundo comando para rodar —
-sair do conflito é responder a pergunta.
+O `pararepo api` não commita nada: é pouco arquivo, e tudo fica no working tree.
 
-Num agente de IA, onde não há terminal para digitar, ele imprime os dois lados e **não grava
-nada**. O agente combina as versões e roda de novo.
+## Duas coisas que ele nunca faz
 
-### Depois, no git
+- **Mexer no `pom.xml` do seu repositório.** Para o Studio ler seu RAML local a referência
+  precisa mudar, e essa reescrita acontece **só no workspace**. Aqui ele segue apontando para
+  o Exchange, que é o que vai para o remoto.
+- **Apagar arquivo.** Um que só existe de um lado continua lá. Se você apagou algo aqui,
+  apague no outro lado também.
 
-O que veio de fora vai para um **commit separado** (`chore(raml): especificacao pedidos
-1.1.55`). Então o `M` e o `??` que sobram no `git status` são os arquivos que **você** editou
-e criou — o `git diff` mostra a sua mudança, não a diferença entre duas versões da
-especificação.
-
-Falta um passo manual: apontar o `pom.xml` para a versão nova.
-
-## O que a ferramenta não faz sozinha
-
-- **Mexer no `pom.xml` do repositório.** Para o Studio ler seu RAML local a referência precisa
-  mudar — e essa reescrita acontece **só no workspace**. Aqui ele segue apontando para o
-  Exchange com a versão travada, que é o que vai para o remoto.
-- **Remover arquivo.** Um que só existe de um lado continua lá: o merge acrescenta e
-  combina, nunca apaga. Se você apagou algo aqui, apague no outro lado também.
-- **Escrever com conflito pendente** — nem os arquivos que deram certo.
-- **Sincronizar `.git`, `target`, `.mule`, `.settings`** e outros artefatos de build.
-- **Rodar em segundo plano.** Copiar arquivos enquanto o scaffold do Studio reescreve os
-  mesmos arquivos é receita para perder trabalho. Você decide quando.
+Nem `.git`, `target`, `.mule` ou `.settings` são sincronizados — é lista configurável no
+`.mule-bridge.toml`.
 
 ## Com agentes de IA
 
@@ -171,16 +146,9 @@ No Claude Code há a skill `/ponte`. Instale pedindo ao próprio Claude Code:
 > Instale a skill do mule-bridge em `~/.claude/skills/ponte/SKILL.md`, copiando o conteúdo
 > de https://github.com/igordiascardoso/mule-bridge/blob/main/.claude/skills/ponte/SKILL.md
 
-Reinicie a sessão e os mesmos oito comandos valem com barra, no chat:
-
-```
-/ponte parastudio raml        /ponte pararepo raml
-/ponte parastudio api         /ponte pararepo api
-/ponte parastudio force       /ponte pararepo force
-/ponte status                 /ponte init
-```
-
-A skill **nunca acrescenta `force` por conta própria**: essa palavra é sempre do usuário.
+Reinicie a sessão e os mesmos comandos valem com barra — `/ponte pararepo api`, e assim por
+diante. A skill **nunca acrescenta `force` por conta própria**: essa palavra é sempre do
+usuário.
 
 ## Se `ponte` não for encontrado
 
