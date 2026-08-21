@@ -70,6 +70,39 @@ class Reconciliacao:
         return len(self.juntados) + len(self.so_deles) + len(self.conflitos)
 
 
+def commitar_base(repo: Path, pasta_rel: str, mensagem: str) -> bool:
+    """Commita **somente** `pasta_rel` como a nova base, sem tocar no resto.
+
+    O `git add` recebe apenas essa pasta e o commit usa `--only`, para que nada mais que
+    esteja em curso no repositorio entre junto. Devolve False quando nao havia nada a
+    commitar (a base ja era essa) ou quando a pasta nao esta sob git.
+    """
+    if not em_repo_git(repo):
+        return False
+
+    add = subprocess.run(
+        ["git", "add", "--", pasta_rel], cwd=repo, capture_output=True, text=True
+    )
+    if add.returncode != 0:
+        return False
+
+    proc = subprocess.run(
+        ["git", "commit", "--only", "--no-verify", "-m", mensagem, "--", pasta_rel],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if proc.returncode == 0:
+        return True
+
+    motivo = (proc.stderr or proc.stdout or "").strip().splitlines()
+    raise ReconcileError(
+        "Nao foi possivel commitar a base: " + (motivo[-1] if motivo else "erro do git")
+    )
+
+
 def base_do_git(pasta: Path, rel: str) -> str | None:
     """Conteudo de um arquivo como esta no ultimo commit, ou None se nao versionado.
 

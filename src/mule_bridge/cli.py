@@ -484,6 +484,22 @@ def _criar_pasta_raml(cfg: BridgeConfig, grupo: str, artefato: str, previa: bool
         config.save(cfg)
         console.print(f"[dim]Pareamento atualizado: {nome} agora faz parte do sync.[/]")
 
+    # A pasta acabou de nascer do Exchange, entao ela e a base — nao uma alteracao sua.
+    # Commitar aqui faz o git partir dela: dai em diante o diff mostra so o seu trabalho.
+    # A extracao ja aconteceu, entao uma falha aqui e avisada, nao aborta o comando.
+    try:
+        if reconcile.commitar_base(
+            cfg.work_root, nome, f"chore(raml): base da especificacao {artefato} {versao}"
+        ):
+            console.print(f"[green]Commitado como base ({versao}) — o git parte daqui.[/]")
+        else:
+            console.print(
+                f"[dim]{nome} nao esta sob git — sem commit de base, o que e esperado.[/]"
+            )
+    except BridgeError as exc:
+        console.print(f"[yellow]Arquivos extraidos, mas nao commitados:[/] {exc}")
+        console.print(f"[dim]Commite quando quiser: git add {nome} && git commit[/]")
+
 
 def _versao_alvo(cfg: BridgeConfig, grupo: str, artefato: str, versao_atual: str) -> str:
     """Descobre para qual versao do RAML trazer.
