@@ -525,8 +525,21 @@ def _juntar_raml(
         console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
         return
 
-    escritos = reconcile.aplicar(r, cfg.work_root / cfg.raml.work)
+    escritos, commitou = reconcile.aplicar_em_dois_commits(
+        r,
+        cfg.work_root / cfg.raml.work,
+        cfg.work_root,
+        cfg.raml.work,
+        f"chore(raml): especificacao {artefato} {versao_nova}",
+    )
     console.print(f"\n[green]{escritos} arquivo(s) atualizado(s) em {cfg.raml.work}.[/]")
+
+    if commitou:
+        console.print(
+            f"[dim]O que veio do Exchange foi commitado a parte "
+            f"(chore(raml): {artefato} {versao_nova}).\n"
+            "O que restou no git e o seu trabalho — de um `git diff` para ver so ele.[/]"
+        )
     console.print(
         f"[dim]Lembre de apontar o pom.xml para {versao_nova} quando for commitar.[/]"
     )

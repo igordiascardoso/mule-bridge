@@ -9,7 +9,7 @@ sem excluir e reimportar o projeto a cada mudança.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-55%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-58%20passing-brightgreen)](tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contribuindo)
 
@@ -181,10 +181,11 @@ ponte pararepo       # Studio        ->  seu repositório
 
 A CLI é a única camada com lógica — as outras são atalhos para acioná-la.
 
-**Pedindo em português.** Como o `mule-bridge` é um comando de terminal, qualquer agente que
+**Pedindo em português.** Como o `ponte` é um comando de terminal, qualquer agente que
 execute comandos (Claude Code, Codex CLI) consegue usá-lo. Basta pedir *"sincroniza pro
-Studio"*. Para que o agente saiba que a ferramenta existe num projeto, documente-a no
-`AGENTS.md`/`CLAUDE.md` daquele projeto.
+Studio"*. Para que o agente saiba que a ferramenta existe num projeto, cole o trecho de
+[docs/AGENTS-exemplo.md](docs/AGENTS-exemplo.md) no `AGENTS.md`/`CLAUDE.md` daquele
+projeto — assim ele sabe quando acionar a ferramenta sem você explicar a cada sessão.
 
 **Com barra, no Claude Code.** Instale a skill uma vez e o comando fica disponível em todos
 os seus projetos:
@@ -329,6 +330,11 @@ publicada — não é preciso credencial do Exchange nem estar online.
 O mesmo vale para `pararepo api`, que usa o último commit do repositório como base: o que
 você mudou desde ele é seu, o que aparece diferente do lado do Studio veio de lá.
 
+**O que vem de fora é commitado à parte.** Ao aplicar, os arquivos que chegaram do
+Exchange sem cruzar com edição sua vão para um commit próprio
+(`chore(raml): especificacao leilao 1.1.55`). O que sobra no `git status` é o seu trabalho
+— então um `git diff` mostra só ele, em vez de misturar as duas coisas.
+
 No terceiro caso nenhum arquivo é tocado — nem os que deram certo. Sua pasta só é
 alterada quando o resultado inteiro está resolvido, então uma edição sua nunca é
 sobrescrita em silêncio.
@@ -382,7 +388,7 @@ git clone https://github.com/igordiascardoso/mule-bridge
 cd mule-bridge
 pip install -e ".[dev]"
 
-pytest          # 55 testes
+pytest          # 58 testes
 ruff check .    # lint
 ```
 
@@ -398,12 +404,11 @@ do `pom.xml`, `config` lembra o pareamento.
 - [x] **Reconciliação tipo `git rebase`** para o RAML (`pararepo raml`)
 - [x] Mesma reconciliação para os arquivos da API (`pararepo api`), usando o último commit
       como base
-- [ ] Separar o commit do que veio de fora do commit das suas edições
+- [x] Separar o commit do que veio de fora do commit das suas edições
 - [x] **Skill do Claude Code** — `/ponte parastudio` dentro de uma sessão
 - [ ] **MCP server** — os mesmos comandos como ferramentas MCP, para clients que não sejam
       o Claude Code
-- [ ] **`AGENTS.md` de exemplo** — trecho pronto para colar num projeto Mule, para o agente
-      saber sozinho quando acionar a ferramenta
+- [x] **`AGENTS.md` de exemplo** — [docs/AGENTS-exemplo.md](docs/AGENTS-exemplo.md)
 
 ## Contribuindo
 

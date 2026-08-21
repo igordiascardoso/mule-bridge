@@ -70,20 +70,28 @@ class Reconciliacao:
         return len(self.juntados) + len(self.so_deles) + len(self.conflitos)
 
 
-def commitar_base(repo: Path, pasta_rel: str, mensagem: str) -> bool:
+def commitar_base(
+    repo: Path, pasta_rel: str, mensagem: str, *, caminhos: list[str] | None = None
+) -> bool:
     """Commita **somente** `pasta_rel` como a nova base, sem tocar no resto.
 
     O `git add` recebe apenas essa pasta e o commit usa `--only`, para que nada mais que
-    esteja em curso no repositorio entre junto. Devolve False quando nao havia nada a
-    commitar (a base ja era essa) ou quando a pasta nao esta sob git.
+    esteja em curso no repositorio entre junto. Passando `caminhos` (relativos a
+    `pasta_rel`), restringe ainda mais: so esses arquivos entram, e uma edicao local em
+    outro arquivo da mesma pasta fica de fora, no working tree.
+
+    Devolve False quando nao havia nada a commitar (a base ja era essa) ou quando a pasta
+    nao esta sob git.
     """
     if not em_repo_git(repo):
         return False
 
+    alvos = [f"{pasta_rel}/{c}" for c in caminhos] if caminhos else [pasta_rel]
+
     # `-c core.safecrlf=false` cala o aviso de LF/CRLF, que nao diz nada sobre o resultado
     # e, sendo ruido na saida, ja foi lido como se o commit tivesse falhado.
     add = subprocess.run(
-        ["git", "-c", "core.safecrlf=false", "add", "--", pasta_rel],
+        ["git", "-c", "core.safecrlf=false", "add", "--", *alvos],
         cwd=repo,
         capture_output=True,
         text=True,
@@ -102,7 +110,7 @@ def commitar_base(repo: Path, pasta_rel: str, mensagem: str) -> bool:
             "-m",
             mensagem,
             "--",
-            pasta_rel,
+            *alvos,
         ],
         cwd=repo,
         capture_output=True,
@@ -375,6 +383,62 @@ def reconciliar(
     return r
 
 
+def aplicar_em_dois_commits(
+    r: Reconciliacao,
+    pasta_local: Path,
+    repo: Path,
+    pasta_rel: str,
+    mensagem_base: str,
+    *,
+    resolucoes: dict[str, str] | None = None,
+) -> tuple[int, bool]:
+    """Aplica em duas etapas, para o que veio de fora nao se misturar com o seu trabalho.
+
+    Primeiro grava e commita **so** os arquivos que vieram de fora intactos — os que voce
+    nao editou. Depois grava o resto, que fica no working tree como a sua mudanca. Assim o
+    `git log` separa "chore: Exchange 1.1.56" do commit das suas edicoes, e o `git diff`
+    depois da operacao mostra so o que e seu.
+
+    Devolve (arquivos escritos, houve commit da base).
+    """
+    if not em_repo_git(repo):
+        return aplicar(r, pasta_local, resolucoes=resolucoes), False
+
+    pendentes = [c.caminho for c in r.conflitos if c.caminho not in (resolucoes or {})]
+    if pendentes:
+        raise ReconcileError(
+            "Ha conflitos sem resolucao — nada foi escrito: " + ", ".join(pendentes)
+        )
+
+    # Etapa 1: so o que veio de fora sem se cruzar com edicao local.
+    de_fora = {rel: r.resultado[rel] for rel in r.so_deles if rel in r.resultado}
+    escritos = _gravar(de_fora, pasta_local)
+    commitou = bool(de_fora) and commitar_base(
+        repo, pasta_rel, mensagem_base, caminhos=sorted(de_fora)
+    )
+
+    # Etapa 2: o que envolve o seu trabalho fica sem commit, para voce revisar.
+    resto = {
+        rel: conteudo for rel, conteudo in r.resultado.items() if rel not in de_fora
+    }
+    resto.update(resolucoes or {})
+    escritos += _gravar(resto, pasta_local)
+    return escritos, commitou
+
+
+def _gravar(conteudos: dict[str, str], pasta_local: Path) -> int:
+    """Escreve os arquivos que de fato mudaram; devolve quantos."""
+    escritos = 0
+    for rel, conteudo in sorted(conteudos.items()):
+        destino = pasta_local / rel
+        if destino.is_file() and destino.read_text(encoding="utf-8", errors="replace") == conteudo:
+            continue
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(conteudo, encoding="utf-8")
+        escritos += 1
+    return escritos
+
+
 def aplicar(
     r: Reconciliacao, pasta_local: Path, *, resolucoes: dict[str, str] | None = None
 ) -> int:
@@ -393,16 +457,7 @@ def aplicar(
 
     final = dict(r.resultado)
     final.update(resolucoes)
-
-    escritos = 0
-    for rel, conteudo in sorted(final.items()):
-        destino = pasta_local / rel
-        if destino.is_file() and destino.read_text(encoding="utf-8", errors="replace") == conteudo:
-            continue
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        destino.write_text(conteudo, encoding="utf-8")
-        escritos += 1
-    return escritos
+    return _gravar(final, pasta_local)
 
 
 def preparar(

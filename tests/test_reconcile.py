@@ -260,3 +260,81 @@ def test_commitar_base_fora_de_repo_git(tmp_path):
     (pasta / "raml").mkdir(parents=True)
 
     assert reconcile.commitar_base(pasta, "raml", "chore: base") is False
+
+
+def test_dois_commits_separam_o_de_fora_do_meu(tmp_path):
+    """O que veio do Exchange e commitado a parte; o meu fica no working tree.
+
+    Assim o `git diff` depois da operacao mostra so o trabalho da pessoa, em vez de
+    misturar as duas coisas num diff unico.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    local = _escreve(repo / "raml", {"api.raml": BASE})
+    base = _escreve(tmp_path / "base", {"api.raml": BASE})
+    novo = _escreve(
+        tmp_path / "novo",
+        {"api.raml": BASE, "captcha.raml": "#%RAML 1.0\ntitle: Captcha\n"},
+    )
+
+    for cmd in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "-m", "base"],
+    ):
+        subprocess.run(cmd, cwd=repo, capture_output=True)
+
+    # edicao local, feita depois do commit
+    (local / "api.raml").write_text(BASE + "  Meu:\n    type: object\n", encoding="utf-8")
+
+    r = reconcile.reconciliar(local, base, novo, "1.1.54", "1.1.55")
+    escritos, commitou = reconcile.aplicar_em_dois_commits(
+        r, local, repo, "raml", "chore(raml): 1.1.55"
+    )
+
+    assert escritos == 1, "so o captcha.raml mudou de fato"
+    assert commitou, "o que veio de fora deve ir para um commit proprio"
+
+    log = subprocess.run(
+        ["git", "log", "--oneline"], cwd=repo, capture_output=True, text=True
+    ).stdout
+    assert "1.1.55" in log, "o commit do Exchange tem de existir"
+
+    sujo = subprocess.run(
+        ["git", "status", "--short"], cwd=repo, capture_output=True, text=True
+    ).stdout
+    assert "api.raml" in sujo, "a edicao local fica no working tree, para a pessoa revisar"
+    assert "captcha.raml" not in sujo, "o que veio de fora ja foi commitado"
+
+
+def test_dois_commits_fora_de_repo_git_apenas_grava(tmp_path):
+    local = _escreve(tmp_path / "raml", {"api.raml": BASE})
+    base = _escreve(tmp_path / "base", {"api.raml": BASE})
+    novo = _escreve(tmp_path / "novo", {"api.raml": BASE, "novo.raml": "#%RAML 1.0\n"})
+
+    r = reconcile.reconciliar(local, base, novo, "1.1.54", "1.1.55")
+    escritos, commitou = reconcile.aplicar_em_dois_commits(
+        r, local, tmp_path, "raml", "chore: base"
+    )
+
+    assert escritos == 1
+    assert commitou is False
+    assert (local / "novo.raml").is_file()
+
+
+def test_dois_commits_recusa_com_conflito_pendente(tmp_path):
+    meu = BASE.replace("Placa do veiculo", "Placa Mercosul")
+    novo_txt = BASE.replace("Placa do veiculo", "Placa (obrigatorio)")
+    local = _escreve(tmp_path / "raml", {"api.raml": meu})
+    base = _escreve(tmp_path / "base", {"api.raml": BASE})
+    novo = _escreve(tmp_path / "novo", {"api.raml": novo_txt})
+
+    r = reconcile.reconciliar(local, base, novo, "1.1.54", "1.1.55")
+
+    with pytest.raises(ReconcileError, match="sem resolucao"):
+        reconcile.aplicar_em_dois_commits(r, local, tmp_path, "raml", "chore: base")
+
+    assert "Mercosul" in (local / "api.raml").read_text(encoding="utf-8")
