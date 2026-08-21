@@ -204,7 +204,6 @@ escolha — funciona igual na extensão do VS Code, onde não há terminal para 
 | `status` | Mostra o pareamento atual e o que um `parastudio` faria agora. |
 | `parastudio` | Leva o que você editou para o workspace do Studio. |
 | `pararepo` | Traz de volta o que o Studio alterou por conta própria. |
-| `juntarraml` | Traz a versão nova do RAML **preservando suas edições**. |
 
 As duas direções aceitam uma parte opcional, quando só um lado mudou:
 
@@ -225,14 +224,19 @@ mule-bridge parastudio         # os dois (padrão)
 > **Nota:** sem `--delete`, o sync só copia — nada é apagado em nenhum dos lados.
 > No `parastudio` o destino é o workspace; no `pararepo`, o seu repositório.
 
-### `juntarraml` — a versão nova sem perder o que você escreveu
+### `pararepo raml` — a versão nova sem perder o que você escreveu
 
 Quando sai uma versão nova do RAML no Exchange, copiar por cima apagaria suas edições. O
-`juntarraml` faz o contrário: trata a versão do Exchange como base e **reaplica suas
+`pararepo raml` faz o contrário: trata a versão do Exchange como base e **reaplica suas
 edições por cima**, como um `git rebase`.
 
+A versão a trazer sai do `pom.xml` do lado do Studio — quando você faz o update do
+Exchange lá (*Properties > Mule Project > APIs*), é ele que registra a escolha.
+
 ```console
-$ mule-bridge juntarraml
+$ mule-bridge pararepo raml
+
+O projeto no Studio está na 1.1.55 — trazendo essa versão.
 
 RAML 1.1.54 -> 1.1.55
 
@@ -248,6 +252,8 @@ RAML 1.1.54 -> 1.1.55
 
 Isso foi uma prévia — rode com --aplicar para gravar.
 ```
+
+Com `--aplicar`, grava.
 
 A base limpa sai do cache local do Maven (`~/.m2`), onde o Studio já guarda cada versão
 publicada — não é preciso credencial do Exchange nem estar online.
@@ -317,7 +323,7 @@ do `pom.xml`, `config` lembra o pareamento.
 - [x] Descoberta interativa de projetos nos dois lados
 - [x] Sync bidirecional (`push` / `pull`) com `--dry-run`
 - [x] Reescrita do `pom.xml` isolada no workspace do Studio
-- [x] **Reconciliação tipo `git rebase`** para o RAML (`juntarraml`)
+- [x] **Reconciliação tipo `git rebase`** para o RAML (`pararepo raml`)
 - [ ] Mesma reconciliação para os arquivos da API (hoje `parastudio`/`pararepo` são cópia
       direta: se os dois lados alterarem o mesmo arquivo, o último a sincronizar vence)
 - [x] **Skill do Claude Code** — `/mulebridge parastudio` dentro de uma sessão

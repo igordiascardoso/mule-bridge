@@ -299,8 +299,18 @@ def pararepo(
         False, "--delete", help="Remove na pasta de trabalho o que ja nao existe no workspace."
     ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Só mostra o que faria."),
+    aplicar: bool = typer.Option(
+        False, "--aplicar", help="So para 'raml': grava o resultado da juncao."
+    ),
 ) -> None:
-    """Traz para o seu repositorio o que mudou no workspace do Studio."""
+    """Traz para o seu repositorio o que mudou no workspace do Studio.
+
+    `pararepo raml` nao e uma copia: ele traz a versao nova do RAML **juntando** com as
+    suas edicoes, para que nada do seu trabalho seja sobrescrito.
+    """
+    if _parse_parte(parte) == "raml":
+        _juntar_raml(work_root, aplicar, dry_run)
+        return
     _run(Direction.PULL, work_root, delete, dry_run, parte)
 
 
@@ -326,17 +336,23 @@ def pull(
     _run(Direction.PULL, work_root, delete, dry_run, parte)
 
 
-@app.command()
+@app.command(hidden=True)
 def juntarraml(
-    versao_nova: str | None = typer.Argument(
-        None, help="Versao do Exchange a trazer. Sem nada, usa a mais nova do cache."
-    ),
+    versao_nova: str | None = typer.Argument(None),
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
-    aplicar: bool = typer.Option(
-        False, "--aplicar", help="Escreve o resultado. Sem isso, so mostra o que faria."
-    ),
+    aplicar: bool = typer.Option(False, "--aplicar"),
 ) -> None:
-    """Traz a versao nova do RAML preservando as suas edicoes (base do Exchange + suas por cima).
+    """Apelido de `pararepo raml`, mantido para nao quebrar quem ja usava."""
+    _juntar_raml(work_root, aplicar, False, versao_nova)
+
+
+def _juntar_raml(
+    work_root: Path | None,
+    aplicar: bool,
+    dry_run: bool = False,
+    versao_nova: str | None = None,
+) -> None:
+    """Traz a versao nova do RAML preservando as edicoes locais (base + suas por cima).
 
     Nada e escrito enquanto houver conflito: os arquivos em conflito sao listados com os
     dois lados, para serem resolvidos antes.
@@ -351,16 +367,8 @@ def juntarraml(
             raise ConfigError("O pom.xml nao referencia um RAML do Exchange.")
         grupo, artefato, versao_atual = coords
 
-        disponiveis = reconcile.versoes_no_cache(grupo, artefato)
         if versao_nova is None:
-            candidatas = [v for v in disponiveis if v != versao_atual]
-            if not candidatas:
-                console.print(
-                    f"[green]Ja esta na versao mais nova baixada ({versao_atual}).[/]\n"
-                    "[dim]Abra o projeto no Studio para ele buscar uma versao mais recente.[/]"
-                )
-                raise typer.Exit()
-            versao_nova = candidatas[-1]
+            versao_nova = _versao_alvo(cfg, grupo, artefato, versao_atual)
 
         r = reconcile.preparar(
             cfg.work_root / cfg.raml.work, grupo, artefato, versao_atual, versao_nova
@@ -377,7 +385,7 @@ def juntarraml(
         )
         raise typer.Exit(1)
 
-    if not aplicar:
+    if dry_run or not aplicar:
         console.print("\n[dim]Isso foi uma previa — rode com --aplicar para gravar.[/]")
         return
 
@@ -386,6 +394,31 @@ def juntarraml(
     console.print(
         f"[dim]Lembre de apontar o pom.xml para {versao_nova} quando for commitar.[/]"
     )
+
+
+def _versao_alvo(cfg: BridgeConfig, grupo: str, artefato: str, versao_atual: str) -> str:
+    """Descobre para qual versao do RAML trazer.
+
+    Primeiro olha o `pom.xml` do lado do Studio: quando voce faz o update do Exchange por
+    la, e ele que registra a versao escolhida. So se o Studio estiver na mesma versao do
+    repo e que caimos na mais nova ja baixada no cache do Maven.
+    """
+    pom_studio = cfg.studio_root / cfg.api.studio / "pom.xml"
+    if pom_studio.is_file():
+        coords = pomrewrite.read_raml_coords(pom_studio)
+        if coords and coords[2] != versao_atual:
+            console.print(
+                f"[dim]O projeto no Studio esta na {coords[2]} — trazendo essa versao.[/]"
+            )
+            return coords[2]
+
+    candidatas = [v for v in reconcile.versoes_no_cache(grupo, artefato) if v != versao_atual]
+    if not candidatas:
+        raise ConfigError(
+            f"Nao ha versao mais nova para trazer — repo e Studio estao na {versao_atual}.\n"
+            "Faca o update do Exchange no Studio (Properties > Mule Project > APIs) primeiro."
+        )
+    return candidatas[-1]
 
 
 def _report_raml(r: reconcile.Reconciliacao) -> None:

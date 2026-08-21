@@ -1,6 +1,6 @@
 ---
 name: mulebridge
-description: "parastudio | pararepo | juntarraml | status | init — sincroniza um projeto Mule entre o repositorio onde voce edita e o workspace do Anypoint Studio. Use quando o usuario pedir para mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mulebridge com ou sem argumento."
+description: "parastudio | pararepo | status | init — sincroniza um projeto Mule entre o repositorio onde voce edita e o workspace do Anypoint Studio. Use quando o usuario pedir para mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /mulebridge com ou sem argumento."
 ---
 
 # mulebridge
@@ -16,7 +16,6 @@ certo e reporta o resultado.
 | `parastudio` | `mule-bridge parastudio` |
 | `pararepo` | `mule-bridge pararepo` |
 | `status` | `mule-bridge status` |
-| `juntarraml`, `atualizar o raml`, `trazer o raml novo` | ver **juntarraml** abaixo |
 | `init`, `parear`, `configurar` | ver **init** abaixo |
 
 Cada direcao aceita uma parte opcional, quando o usuario quer mover so um lado:
@@ -25,7 +24,7 @@ Cada direcao aceita uma parte opcional, quando o usuario quer mover so um lado:
 |---|---|
 | `parastudio raml` | `mule-bridge parastudio raml` |
 | `parastudio api` | `mule-bridge parastudio api` |
-| `pararepo raml` | `mule-bridge pararepo raml` |
+| `pararepo raml`, `atualizar o raml`, `trazer o raml novo` | `mule-bridge pararepo raml` — ver abaixo |
 | `pararepo api` | `mule-bridge pararepo api` |
 
 Sem a parte, vao os dois — que e o caso normal, porque uma mudanca no RAML costuma
@@ -81,19 +80,21 @@ quando o usuario pedir explicitamente, e mesmo assim rode antes com `--dry-run` 
 lista do que sera removido. No `pararepo`, o destino e o repositorio do usuario: apagar ali
 pode destruir trabalho nao commitado.
 
-## juntarraml
+## pararepo raml — juncao, nao copia
 
-Traz a versao nova do RAML do Exchange preservando as edicoes locais. Rode primeiro sem
-`--aplicar`, que so mostra o que aconteceria:
+`pararepo raml` nao copia por cima: traz a versao nova do RAML preservando as edicoes
+locais. A versao vem do `pom.xml` do lado do Studio, que registra o update feito la.
+
+Rode primeiro sem `--aplicar`, que so mostra o que aconteceria:
 
 ```bash
-mule-bridge juntarraml
+mule-bridge pararepo raml
 ```
 
 **Se nao houver conflito**, mostre a tabela ao usuario e pergunte se aplica. So entao:
 
 ```bash
-mule-bridge juntarraml --aplicar
+mule-bridge pararepo raml --aplicar
 ```
 
 Lembre o usuario de apontar o `pom.xml` para a versao nova quando for commitar — o comando
@@ -111,7 +112,7 @@ que voce entra. Para cada conflito:
 3. **Se sao incompativeis** — ex: `type: string` contra `type: number` — nao invente uma
    combinacao. Mostre os dois lados e pergunte qual vale.
 4. Depois de o usuario decidir, edite o arquivo na pasta do RAML com o conteudo acordado e
-   rode `mule-bridge juntarraml --aplicar` de novo.
+   rode `mule-bridge pararepo raml --aplicar` de novo.
 
 **Nunca** escolha um lado por conta propria nem descarte a edicao do usuario para "resolver
 logo". Uma edicao perdida em silencio e o pior resultado possivel aqui.
