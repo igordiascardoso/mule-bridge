@@ -230,7 +230,10 @@ trazem o que veio do outro lado — não há nada para preservar, nem conflito p
 
 **Se a pasta do RAML nem existir**, o `pararepo raml` a cria na raiz do repositório,
 extraindo a versão que o projeto do Studio usa — útil num projeto novo, ou quando a pasta
-se perdeu. O pareamento é atualizado junto.
+se perdeu. O pareamento é atualizado junto, e a pasta recém-criada é **commitada como
+base**: assim o `git status` fica limpo, e a partir dali mostra só o que **você** editar,
+não a diferença entre duas versões do Exchange. Esse commit toca apenas a pasta do RAML,
+sem levar nada mais que esteja em curso no repositório.
 
 **Flags:**
 
