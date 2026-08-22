@@ -871,29 +871,172 @@ def _trecho_conflitante(marcado: str, lado: str) -> list[str]:
     return saida[:6] or ["(sem linhas)"]
 
 
+def _trocar(rotulo: str, atual: str, opcoes: list[str], *, existe: bool) -> str:
+    """Pergunta um caminho, com o de hoje como primeira opcao e default.
+
+    Quem chega aqui veio de um `status` acusando pasta fora do lugar, e em geral so um dos
+    caminhos mudou. Manter e a opcao 1 para que Enter seja a resposta certa nos outros —
+    corrigir um caminho nao pode custar redigitar os que estavam certos. O que nao esta no
+    disco vem marcado, para nao se manter por engano justamente o que quebrou.
+    """
+    # Sem colchetes: o rich os leria como marcacao de cor e engoliria o aviso.
+    MANTER = f"manter: {atual}" + ("" if existe else "   <-- nao esta no disco")
+    DIGITO = "outro — eu digito"
+    candidatos = [o for o in opcoes if o != atual]
+
+    idx = _choose(rotulo, [MANTER, *candidatos, DIGITO], flag="--work-root")
+    if idx == 0:
+        return atual
+    if idx <= len(candidatos):
+        return candidatos[idx - 1]
+
+    try:
+        digitado = typer.prompt(f"{rotulo} — caminho")
+    except (typer.Abort, EOFError, OSError) as exc:
+        raise NonInteractiveError(
+            f"{rotulo} — nao ha terminal interativo para perguntar."
+        ) from exc
+    return digitado.strip().strip('"').strip("'")
+
+
 @app.command()
-def status(
+def caminho(
     work_root: Path | None = typer.Option(None, "--work-root", "-w"),
 ) -> None:
-    """Mostra o pareamento configurado e o que um parastudio faria agora."""
+    """Corrige os caminhos do pareamento, quando uma pasta saiu do lugar.
+
+    O `status` diz qual pasta nao esta onde foi pareada; este comando reaponta. Pergunta os
+    tres caminhos com o de hoje como default, entao corrigir um custa um Enter nos outros.
+    Nao repete as escolhas do `init` — a pergunta aqui e "onde ficou", nao "qual e o par".
+    """
     try:
         cfg = _load(_resolve_root(work_root))
     except BridgeError as exc:
         raise _fail(exc) from exc
 
-    console.print(f"[bold]trabalho:[/] {cfg.work_root}")
-    console.print(f"[bold]workspace:[/] {cfg.studio_root}")
-    for pair in (cfg.api, cfg.raml):
-        if pair is None:
-            continue
-        if pair.studio is None:
-            console.print(
-                f"  {pair.work}  ->  [dim]sem pasta no workspace; o Studio le do Exchange[/]"
+    try:
+        # Workspace do Studio: a raiz onde ficam os projetos, e o que mais muda de lugar
+        # (troca de maquina, ou File > Switch Workspace).
+        cfg.studio_root = Path(
+            _trocar(
+                "Onde fica o workspace do Anypoint Studio?",
+                str(cfg.studio_root),
+                [str(w) for w in discovery.find_studio_workspaces()],
+                existe=cfg.studio_root.is_dir(),
             )
+        )
+
+        # As listas saem separadas por tipo: uma pasta de API nunca e candidata a RAML, e
+        # oferece-la e convidar o pareamento errado — que so aparece muito depois.
+        locais = discovery.find_projects(cfg.work_root)
+        apis_locais = [p.name for p in locais if p.kind == "api"]
+        ramls_locais = [p.name for p in locais if p.kind == "raml"]
+        no_studio = [p.name for p in discovery.find_projects(cfg.studio_root)]
+
+        cfg.api = ProjectPair(
+            _trocar(
+                "A pasta da API no seu repositorio",
+                cfg.api.work,
+                apis_locais,
+                existe=(cfg.work_root / cfg.api.work).is_dir(),
+            ),
+            _trocar(
+                "A pasta dela no workspace do Studio",
+                cfg.api.studio or "",
+                no_studio,
+                existe=bool(cfg.api.studio)
+                and (cfg.studio_root / cfg.api.studio).is_dir(),
+            )
+            or None,
+        )
+
+        # O RAML so entra em pergunta quando a pasta pareada nao esta no disco — e ai o
+        # unico caso que precisa de resposta e o da pasta renomeada. Pasta que simplesmente
+        # nao existe o `pararepo raml` recria extraindo o zip, sem precisar de conserto; e
+        # pasta no lugar nao tem o que corrigir. Perguntar sempre so cobrava um Enter a
+        # mais de quem veio consertar outra coisa.
+        if cfg.raml is not None and not (cfg.work_root / cfg.raml.work).is_dir():
+            if ramls_locais:
+                cfg.raml = ProjectPair(
+                    _trocar(
+                        "A sua pasta do RAML mudou de nome. Qual e agora?",
+                        cfg.raml.work,
+                        ramls_locais,
+                        existe=False,
+                    ),
+                    cfg.raml.studio,
+                )
+            else:
+                console.print(
+                    f"\n[dim]A pasta do RAML ({cfg.raml.work}) nao esta no disco, e nao ha "
+                    "outra por perto.\nDeixei o pareamento como esta: `ponte pararepo raml` "
+                    "extrai a especificacao e a cria de novo.[/]"
+                )
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    destino = config.save(cfg)
+    console.print(f"\n[green]Caminhos gravados[/] em {destino}")
+    console.print("[dim]Rode `ponte status` para conferir se os dois lados respondem.[/]")
+
+
+@app.command()
+def status(
+    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
+) -> None:
+    """Diz se os dois lados de cada par estao no lugar, e onde eles ficam.
+
+    Uma pergunta so: o pareamento esta de pe? Quantos arquivos diferem e o que um
+    `parastudio` copiaria e assunto do proprio `parastudio`, que ja mostra isso.
+    """
+    try:
+        cfg = _load(_resolve_root(work_root))
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    faltando: list[str] = []
+
+    def _lado(rotulo: str, caminho: Path) -> None:
+        """Uma linha dizendo se a pasta esta la, e outra com o caminho dela.
+
+        O caminho vai sozinho na linha de baixo porque em Windows ele passa da largura do
+        terminal: junto do rotulo, quebrava no meio e a marca de ok/FALTA sumia de vista.
+        """
+        if caminho.is_dir():
+            console.print(f"  [green]conectado[/]     {rotulo}")
         else:
-            console.print(f"  {pair.work}  ->  {pair.studio}")
-    console.print()
-    _run(Direction.PUSH, work_root, False, True)
+            console.print(f"  [red]NAO ENCONTRADA[/] {rotulo}")
+            faltando.append(rotulo)
+        console.print(f"                  [dim]{caminho}[/]")
+
+    _lado("workspace do Studio", cfg.studio_root)
+
+    for pair, nome in ((cfg.api, "API"), (cfg.raml, "RAML")):
+        if pair is None:
+            console.print(f"\n[bold]{nome}[/]  [dim]nao pareado[/]")
+            continue
+
+        console.print(f"\n[bold]{nome}[/]")
+        _lado(f"a sua pasta ({pair.work})", cfg.work_root / pair.work)
+        if pair.studio is None:
+            # Caso normal do RAML: o Studio o consome como dependencia do Exchange, e nao
+            # ha pasta correspondente no workspace. Nao e ausencia, e o desenho.
+            console.print("  [dim]—               no workspace nao ha pasta:[/]")
+            console.print("                  [dim]o Studio le a especificacao do Exchange[/]")
+        else:
+            _lado(f"no workspace ({pair.studio})", cfg.studio_root / pair.studio)
+
+    if faltando:
+        console.print(
+            f"\n[yellow]Pareado, mas nao achei no disco:[/] {', '.join(faltando)}."
+        )
+        console.print(
+            "[dim]A pasta foi movida ou renomeada depois do pareamento — o sync nao vai "
+            "rodar assim.\nRode `ponte caminho` para reapontar, ou `ponte init --force` "
+            "para parear tudo de novo.[/]"
+        )
+    else:
+        console.print("\n[green]Tudo conectado.[/] Os dois lados de cada par estao no lugar.")
 
 
 if __name__ == "__main__":  # pragma: no cover

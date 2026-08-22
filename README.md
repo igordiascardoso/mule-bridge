@@ -37,11 +37,12 @@ Uma das três palavras — `raml`, `api`, `force` — é obrigatória, e elas n�
 A barra é a forma do Claude Code, com a [skill instalada](#com-agentes-de-ia). Em qualquer
 outro terminal são os mesmos comandos sem ela: `ponte pararepo api`.
 
-Mais dois:
+Mais três, que não sincronizam nada — cuidam do pareamento:
 
 ```
 /ponte init      pareia o repo com um projeto do workspace (uma vez por projeto)
-/ponte status    mostra o que está pareado e quantos arquivos diferem
+/ponte status    diz se as pastas dos dois lados estão no lugar, e onde ficam
+/ponte caminho   reaponta o pareamento quando uma pasta saiu do lugar
 ```
 
 ## Começando

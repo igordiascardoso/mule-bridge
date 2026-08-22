@@ -1,6 +1,6 @@
 ---
 name: ponte
-description: "parastudio | pararepo | status | init — sincroniza um projeto Mule entre o repositorio onde voce edita e o workspace do Anypoint Studio. Use quando o usuario pedir para mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, ou digitar /ponte com ou sem argumento."
+description: "parastudio | pararepo | status | caminho | init — sincroniza um projeto Mule entre o repositorio onde voce edita e o workspace do Anypoint Studio. Use quando o usuario pedir para mandar as alteracoes para o Studio, trazer de volta o que o Studio alterou (scaffold, application.xml, pom.xml), parear o projeto com o workspace, reapontar uma pasta que saiu do lugar, ou digitar /ponte com ou sem argumento."
 ---
 
 # ponte
@@ -9,22 +9,39 @@ Camada fina sobre a CLI `mule-bridge`. **Nao reimplemente nada aqui** — toda a
 (descoberta, sync, merge, reescrita do `pom.xml`) vive na CLI. Esta skill so escolhe o
 comando certo, resolve conflito quando aparece, e reporta o resultado.
 
-## Os oito comandos
+## Os oito comandos de sync
 
 ```
-ponte parastudio raml      aponta o pom.xml do Studio para a pasta local do RAML
-                           (ou copia, se houver pasta de RAML no workspace)
-ponte parastudio api       copia a API do repositorio para o workspace
-ponte parastudio force     copia RAML + API por cima do workspace, sem merge
+ponte parastudio raml      nao copia nada: aponta o pom.xml do workspace para a pasta
+                           local do RAML (ou copia, se houver pasta de RAML la)
+ponte parastudio api       copia a API do repositorio para o workspace, SEM merge
+ponte parastudio force     copia RAML + API por cima do workspace, SEM merge
 ponte parastudio           RECUSA: falta a palavra
 
-ponte pararepo raml        faz merge da versao nova do RAML com as edicoes locais
-ponte pararepo api         faz merge do que o Studio mudou com o que o usuario mudou
-ponte pararepo force       copia RAML + API por cima do repositorio, SEM merge
+ponte pararepo raml        traz a versao nova do Exchange e faz MERGE na pasta de RAML
+                           do repositorio
+ponte pararepo api         traz o que o Studio mudou e faz MERGE na pasta da API do
+                           repositorio
+ponte pararepo force       copia RAML + API por cima do repositorio, SEM merge — apaga
+                           o que o usuario nao commitou
 ponte pararepo             RECUSA: falta a palavra
 ```
 
 `parastudio` escreve no workspace do Studio; `pararepo` escreve no repositorio do usuario.
+O outro lado e so lido.
+
+**O merge existe em dois comandos so: `pararepo raml` e `pararepo api`**, e grava sempre no
+repositorio do usuario. O `parastudio` copia por cima porque o destino e o workspace, que o
+Studio reconstroi; o `pararepo force` copia por cima do trabalho do usuario, e por isso a
+palavra e sempre dele (ver abaixo).
+
+## Mais tres, que cuidam do pareamento
+
+```
+ponte init                 pareia o repo com um projeto do workspace (uma vez por projeto)
+ponte status               diz se as pastas dos dois lados estao no lugar, e onde ficam
+ponte caminho              reaponta o pareamento quando uma pasta saiu do lugar
+```
 
 ## O vocabulario sao tres palavras
 
@@ -61,6 +78,7 @@ Com barra, o argumento e o comando — repasse direto:
 | `/ponte pararepo api` | `ponte pararepo api` |
 | `/ponte pararepo force` | `ponte pararepo force` |
 | `/ponte status` | `ponte status` |
+| `/ponte caminho` | `ponte caminho` |
 | `/ponte init` | ver **init** abaixo |
 
 Em portugues, traduza:
@@ -72,6 +90,7 @@ Em portugues, traduza:
 | "traz o que o Studio mudou", "pega o scaffold" | `ponte pararepo api` |
 | "atualiza o raml", "saiu versao nova no Exchange" | `ponte pararepo raml` |
 | "o que esta pareado?", "como esta?" | `ponte status` |
+| "a pasta mudou de lugar", "nao acha a pasta" | `ponte caminho` |
 | "parear", "configurar" | ver **init** abaixo |
 
 `/ponte parastudio` e `/ponte pararepo` **sem palavra** sao recusados pela CLI. Nao escolha
@@ -87,8 +106,9 @@ redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
 
 - **Erro de config ausente** — o projeto ainda nao foi pareado. Conduza o **init** (abaixo)
   na hora, ja mostrando as opcoes.
-- **Mostrou o pareamento** — apresente a tabela e diga, em uma linha, o que ele pode fazer
-  em seguida.
+- **Alguma pasta como NAO ENCONTRADA** — o pareamento aponta para pasta que saiu do lugar, e
+  nenhum sync vai rodar assim. Diga qual pasta e, e ofereca o `ponte caminho`.
+- **Tudo conectado** — diga isso em uma linha, com o que ele pode fazer em seguida.
 
 ## Antes de sincronizar
 
