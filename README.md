@@ -97,32 +97,44 @@ Saiu versão nova do RAML no Exchange:
 Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no disco
 e redeploya sozinho.
 
-## Trazer sem perder o que você fez
+## O merge: trazer o novo sem perder o seu
 
-Você editou o RAML e sai uma versão nova no Exchange. Ou você mexeu num flow e o Studio
-gerou outros. Copiar por cima apagaria o seu trabalho — então `pararepo raml` e
-`pararepo api` não copiam: eles fazem **merge** das duas versões.
+Duas coisas mudam ao mesmo tempo, e você não quer escolher entre elas:
 
-O merge escreve **no seu repositório**, e só nele. O workspace do Studio não é tocado:
+- você editou o RAML **e** saiu versão nova no Exchange
+- você mexeu num flow **e** o Studio gerou outros no scaffold
 
-| Comando | De onde vem o novo | Onde ele escreve |
+Copiar por cima resolveria uma e apagaria a outra. Por isso `pararepo raml` e
+`pararepo api` não copiam: **eles juntam as duas versões**, e gravam no repo.
+
+Para decidir, ele compara três versões de cada arquivo: como era antes, como está no repo
+agora, e como chegou.
+
+### `/ponte pararepo raml` — vem do Exchange, grava no repo
+
+| Mudou no repo | Mudou no Exchange | Fica no repo |
 |---|---|---|
-| `pararepo raml` | a versão nova do RAML, do Exchange | a sua pasta do RAML (`pedidos-raml/`) |
-| `pararepo api` | o que está no workspace do Studio | a sua pasta da API (`pedidos-api/`) |
+| sim | não | a versão do repo |
+| não | sim | a versão do Exchange |
+| sim | sim, em outro ponto | as duas mudanças, juntas |
+| sim | sim, no mesmo ponto | **ele pergunta** |
 
-Para cada arquivo dessa pasta, ele compara a **sua versão** (a que está no repositório) com a
-**versão que chegou** (do Exchange, ou do workspace):
+### `/ponte pararepo api` — vem do workspace, grava no repo
 
-| O que aconteceu com o arquivo | O que fica gravado no seu repositório |
-|---|---|
-| só você editou | a sua, intacta — ele nem abre o arquivo |
-| só a versão que chegou mudou | a que chegou, no lugar da sua |
-| os dois mudaram, **em linhas diferentes** | um arquivo com as duas mudanças dentro |
-| os dois mudaram, **na mesma linha** | ele **pergunta**: a sua, a que chegou, ou o que você digitar |
-| existe só no seu repositório | a sua, onde está — não é apagada |
-| existe só do outro lado | a que chegou, criada na sua pasta |
+| Mudou no repo | Mudou no workspace | Fica no repo |
+|---|---|---|
+| sim | não | a versão do repo |
+| não | sim | a versão do workspace |
+| sim | sim, em outro ponto | as duas mudanças, juntas |
+| sim | sim, no mesmo ponto | **ele pergunta** |
 
-**Só a mesma linha precisa de você.** Aí ele mostra os dois lados e espera:
+Arquivo que existe num lado só: se está apenas no repo, fica; se chegou apenas do outro, é
+criado no repo. Se o Exchange apagou um arquivo, ele sai do repo também — a não ser que você
+o tivesse editado, e aí a versão do repo fica, porque apagar seria decidir por você.
+
+### Quando ele pergunta
+
+Só quando os dois mexeram no mesmo ponto. Ele mostra os dois lados e espera:
 
 ```console
 api.raml — as duas versoes mexeram nas mesmas linhas
@@ -136,12 +148,12 @@ api.raml — as duas versoes mexeram nas mesmas linhas
 Fica qual? 1 = a sua, 2 = a que veio, 3 = eu escrevo [1]:
 ```
 
-Você responde, ele grava o arquivo na sua pasta com a versão escolhida, e acabou. Não sobra
-marcador `<<<<<<<` dentro dele, e não há segundo comando para rodar.
+Você escolhe, ele grava, e acabou — sem segundo comando para rodar. O arquivo fica limpo:
+nada de `<<<<<<<` e `>>>>>>>` sobrando dentro dele para você limpar depois.
 
-Num agente de IA não existe onde digitar a resposta — então ele mostra as duas versões e
-**não grava nada, em nenhum arquivo**. O agente escreve a versão combinada na sua pasta e
-roda o comando de novo.
+**Se não houver onde digitar** — um agente de IA, uma extensão de IDE, um CI — ele mostra as
+duas versões e **não grava nada, em nenhum arquivo**. Quem chamou combina as versões no repo
+e roda o comando de novo.
 
 ### Dois detalhes do `pararepo raml`
 
