@@ -47,9 +47,18 @@ Mais três, que não sincronizam nada — cuidam do pareamento:
 
 ## Começando
 
+O `ponte` roda na pasta que **contém** o repositório clonado da API — não dentro dele. É de
+lá que ele enxerga as duas pastas como irmãs:
+
+```
+c:\projetos\pedidos\          <- é aqui que se roda o init
+├── pedidos-api\              <- o repositório clonado (a API)
+└── pedidos-raml\             <- o RAML, extraído do Exchange
+```
+
 ```bash
-cd c:\projetos\minha-api   # a raiz, onde ficam a pasta da API e a do RAML
-ponte init
+cd c:\projetos\pedidos
+/ponte init
 ```
 
 Ele acha os projetos dos dois lados e pergunta cada escolha — inclusive quando há um
