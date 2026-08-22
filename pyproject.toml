@@ -38,6 +38,11 @@ Homepage = "https://github.com/igordiascardoso/mule-bridge"
 [tool.hatch.build.targets.wheel]
 packages = ["src/mule_bridge"]
 
+# O SKILL.md viaja dentro do pacote: e dele que o `init` instala a skill do Claude Code,
+# sem depender de rede nem de um segundo passo do usuario.
+[tool.hatch.build.targets.wheel.force-include]
+"src/mule_bridge/skill/SKILL.md" = "mule_bridge/skill/SKILL.md"
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

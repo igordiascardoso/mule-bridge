@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -150,6 +151,36 @@ def _resolve_root(work_root: Path | None) -> Path:
     return (work_root or Path.cwd()).resolve()
 
 
+#: A skill viaja dentro do pacote, e nao e baixada: `init` sem rede tem de funcionar.
+SKILL_NO_PACOTE = Path(__file__).parent / "skill" / "SKILL.md"
+
+
+def _instalar_skill() -> Path | None:
+    """Grava a skill do Claude Code em `~/.claude/skills/ponte/`, se houver onde.
+
+    Instalar a ferramenta e um passo; a skill nao pode ser um segundo, porque e o passo que
+    se esquece — e uma skill velha faz o `/ponte` sugerir comando que nao existe mais.
+
+    Sobrescreve sempre: a skill acompanha a versao da CLI, e as duas desalinhadas e
+    justamente o problema que isto resolve.
+
+    Devolve o caminho gravado, ou None quando nao havia o que fazer — sem `~/.claude` (quem
+    nao usa Claude Code nao precisa ouvir sobre skill) ou quando a copia falha. Nunca
+    levanta: o trabalho do `init` e o pareamento, e um extra nao pode derrubar isso.
+    """
+    raiz = Path.home() / ".claude"
+    if not raiz.is_dir() or not SKILL_NO_PACOTE.is_file():
+        return None
+
+    destino = raiz / "skills" / "ponte" / "SKILL.md"
+    try:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(SKILL_NO_PACOTE, destino)
+    except OSError:
+        return None
+    return destino
+
+
 def _load(work_root: Path) -> BridgeConfig:
     return config.load(work_root)
 
@@ -294,6 +325,13 @@ def init(
         raise _fail(exc) from exc
 
     console.print(f"\n[green]Config gravada em[/] {written}")
+
+    destino = _instalar_skill()
+    if destino is not None:
+        console.print(
+            f"\n[dim]Skill do Claude Code instalada em {destino}.\n"
+            "Reinicie a sessao e os comandos valem com barra: `/ponte pararepo api`.[/]"
+        )
 
     if cfg.raml is None:
         console.print(

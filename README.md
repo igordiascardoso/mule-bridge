@@ -289,13 +289,11 @@ O `ponte` é um comando de terminal, então qualquer agente que execute comandos
 basta pedir *"manda pro Studio"*. Para ele saber que a ferramenta existe num projeto, cole
 [docs/AGENTS-exemplo.md](docs/AGENTS-exemplo.md) no `AGENTS.md` / `CLAUDE.md` daquele repo.
 
-No Claude Code há a skill `/ponte`. Instale pedindo ao próprio Claude Code:
+No Claude Code há a skill `/ponte`, e **o `init` já a instala** — nada a baixar ou copiar à
+mão. Reinicie a sessão e os mesmos comandos valem com barra: `/ponte pararepo api`.
 
-> Instale a skill do mule-bridge em `~/.claude/skills/ponte/SKILL.md`, copiando o conteúdo
-> de https://github.com/igordiascardoso/mule-bridge/blob/main/.claude/skills/ponte/SKILL.md
-
-Reinicie a sessão e os mesmos comandos valem com barra — `/ponte pararepo api`, e assim por
-diante. A skill **nunca acrescenta `force` por conta própria**: essa palavra é sempre do
+Cada `init` grava a versão que acompanha a CLI, então a skill nunca fica atrás do que os
+comandos fazem. Ela **nunca acrescenta `force` por conta própria**: essa palavra é sempre do
 usuário.
 
 ## Se `ponte` não for encontrado
