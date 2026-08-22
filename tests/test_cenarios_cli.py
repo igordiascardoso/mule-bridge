@@ -9,15 +9,16 @@ comando que grava o que nao devia.
 from __future__ import annotations
 
 import subprocess
-import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
-from mule_bridge import config, pomrewrite
+from mule_bridge import config, exchange, pomrewrite
 from mule_bridge.cli import app
 from mule_bridge.config import BridgeConfig, ProjectPair
+from mule_bridge.exchange import ProjetoDesignCenter, VersaoExchange
 
 runner = CliRunner()
 
@@ -38,6 +39,12 @@ POM = """<?xml version="1.0" encoding="UTF-8"?>
 
 BASE_RAML = "#%RAML 1.0\ntitle: Pedidos\nversion: v1\ntypes:\n  Pedido:\n  Item:\n  Fim:\n"
 
+GROUP_ID = "grupo-org-teste"
+#: Entrada dos dois menus novos do `pararepo raml` (projeto do Design Center, depois
+#: versao do Exchange) — vem sempre antes do que o teste responde para o merge/conflito.
+#: linha vazia ("Enter para ver todos") no novo filtro por texto, depois a escolha 1/1.
+ESCOLHE_PROJETO_E_VERSAO_NOVA = "\n1\n1\n"
+
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -49,20 +56,10 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     )
 
 
-def _zip(m2: Path, versao: str, arquivos: dict[str, str]) -> None:
-    destino = m2 / "grupo" / "pedidos" / versao / f"pedidos-{versao}-raml.zip"
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destino, "w") as z:
-        for rel, conteudo in arquivos.items():
-            z.writestr(rel, conteudo)
-
-
 @pytest.fixture
 def projeto(tmp_path, monkeypatch):
-    """Repo git com API + RAML na 1.1.54, Studio na 1.1.55, cache com as duas."""
+    """Repo git com API + RAML na 1.1.54; o Exchange mockado tem a 1.1.55 como latest."""
     work, studio = tmp_path / "repo", tmp_path / "ws"
-    m2 = tmp_path / "casa" / ".m2" / "repository"
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "casa"))
 
     api = work / "pedidos-api" / "src" / "main" / "mule"
     api.mkdir(parents=True)
@@ -72,22 +69,17 @@ def projeto(tmp_path, monkeypatch):
     raml = work / "pedidos-raml"
     raml.mkdir()
     (raml / "api.raml").write_text(BASE_RAML, encoding="utf-8")
+    (raml / "exchange.json").write_text(
+        f'{{"groupId": "{GROUP_ID}", "assetId": "pedidos", "main": "api.raml", '
+        f'"apiVersion": "v1", "version": "1.1.54"}}',
+        encoding="utf-8",
+    )
 
     studio_api = studio / "studio-pedidos" / "src" / "main" / "mule"
     studio_api.mkdir(parents=True)
     (studio_api / "application.xml").write_text("<mule/>\n", encoding="utf-8")
     (studio / "studio-pedidos" / "pom.xml").write_text(
         POM.format(versao="1.1.55"), encoding="utf-8"
-    )
-
-    _zip(m2, "1.1.54", {"api.raml": BASE_RAML})
-    _zip(
-        m2,
-        "1.1.55",
-        {
-            "api.raml": BASE_RAML.replace("  Item:\n", "  Item:\n    novo: string\n"),
-            "domain/captcha.raml": "#%RAML 1.0 DataType\ntype: object\n",
-        },
     )
 
     _git(work, "init", "-q")
@@ -104,7 +96,59 @@ def projeto(tmp_path, monkeypatch):
             raml=ProjectPair("pedidos-raml", "nenhuma"),
         )
     )
+
+    _mock_exchange(monkeypatch)
     return {"work": work, "studio": studio, "raml": raml}
+
+
+def _mock_exchange(monkeypatch):
+    """Substitui o modulo exchange por completo — nenhum teste bate na CLI real.
+
+    O Design Center tem um unico projeto ("pedidos") cujo Exchange tem a 1.1.54 (a base)
+    e a 1.1.55 (a novidade, com o mesmo conteudo que os testes antigos esperavam do cache
+    do Maven): `captcha.raml` novo e um campo novo em `api.raml`.
+    """
+    conteudo_por_versao = {
+        "1.1.54": {"api.raml": BASE_RAML},
+        "1.1.55": {
+            "api.raml": BASE_RAML.replace("  Item:\n", "  Item:\n    novo: string\n"),
+            "domain/captcha.raml": "#%RAML 1.0 DataType\ntype: object\n",
+        },
+    }
+    projeto_dc = ProjetoDesignCenter(
+        id="proj-1", nome="pedidos", modificado_em=datetime(2026, 8, 22, tzinfo=timezone.utc)
+    )
+
+    monkeypatch.setattr(exchange, "listar_projetos_design_center", lambda: [projeto_dc])
+
+    def fake_baixar_projeto(nome, destino):
+        destino.mkdir(parents=True, exist_ok=True)
+        (destino / "exchange.json").write_text(
+            f'{{"groupId": "{GROUP_ID}", "assetId": "pedidos", "main": "api.raml", '
+            f'"apiVersion": "v1", "version": "1.1.55"}}',
+            encoding="utf-8",
+        )
+        return destino
+
+    monkeypatch.setattr(exchange, "baixar_projeto_design_center", fake_baixar_projeto)
+
+    def fake_listar_versoes(group_id, asset_id):
+        return [
+            VersaoExchange(versao=v, publicado_em=datetime(2026, 8, 22, tzinfo=timezone.utc))
+            for v in sorted(conteudo_por_versao, reverse=True)
+        ]
+
+    monkeypatch.setattr(exchange, "listar_versoes_exchange", fake_listar_versoes)
+
+    def fake_baixar_versao(group_id, asset_id, versao, destino):
+        destino.mkdir(parents=True, exist_ok=True)
+        for rel, texto in conteudo_por_versao[versao].items():
+            p = destino / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(texto, encoding="utf-8")
+        return destino
+
+    monkeypatch.setattr(exchange, "baixar_versao_exchange", fake_baixar_versao)
 
 
 def _rodar(projeto, *args, entrada: str | None = None):
@@ -112,8 +156,14 @@ def _rodar(projeto, *args, entrada: str | None = None):
 
     `entrada` simula o que ele responde nos prompts; uma string vazia representa a
     ausencia de terminal — o caso do agente de IA no chat, que nao tem onde digitar.
+    `pararepo raml` sempre recebe primeiro a escolha dos dois menus novos (projeto do
+    Design Center, versao do Exchange) — sempre a opcao 1 (o unico projeto, a versao mais
+    nova) — e so depois a entrada que o teste queria simular para o merge/conflito.
     """
-    return runner.invoke(app, [*args, "-w", str(projeto["work"])], input=entrada)
+    entrada_final = entrada
+    if args[:2] == ("pararepo", "raml"):
+        entrada_final = ESCOLHE_PROJETO_E_VERSAO_NOVA + (entrada or "")
+    return runner.invoke(app, [*args, "-w", str(projeto["work"])], input=entrada_final)
 
 
 # --- pararepo raml -------------------------------------------
@@ -154,6 +204,55 @@ def test_pararepo_raml_preserva_edicao_local(projeto):
     final = caminho.read_text(encoding="utf-8")
     assert "MINHA-NOTA" in final, "a edicao local foi perdida"
     assert "novo: string" in final, "a mudanca do Exchange nao entrou"
+
+
+def test_pararepo_raml_pulando_varias_versoes_preserva_os_dois_lados(projeto, monkeypatch):
+    """Pasta local bem atras da mais nova, com edicao pendente, ainda faz merge correto.
+
+    Cenario pedido explicitamente para confirmar: nao so avancar uma versao, mas pular
+    varias de uma vez (o Design Center tem so 1.1.54 e 1.1.55, mas nada impede que na
+    pratica existam mais versoes entre a da pasta e a mais nova escolhida). O merge de tres
+    pontas usa a versao real da pasta como base — nunca a mais nova do menu — entao isso
+    tem de funcionar independente de quantas versoes ficaram no meio.
+    """
+    # Adiciona uma 1.1.56 ao Exchange mockado, que edita uma linha DIFERENTE da que a
+    # edicao local toca — o caso que teve de ser isolado num teste sintetico manual
+    # (ver docs/DESIGN-CENTER-CLI.md) porque o conteudo real usado la nao mudava de fato.
+    conteudo_1156 = BASE_RAML.replace("  Fim:\n", "  Fim: string  # editado no Exchange\n")
+
+    def fake_baixar_versao(group_id, asset_id, versao, destino):
+        destino.mkdir(parents=True, exist_ok=True)
+        conteudos = {
+            "1.1.54": {"api.raml": BASE_RAML},
+            "1.1.56": {"api.raml": conteudo_1156},
+        }
+        for rel, texto in conteudos[versao].items():
+            p = destino / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(texto, encoding="utf-8")
+        return destino
+
+    monkeypatch.setattr(exchange, "baixar_versao_exchange", fake_baixar_versao)
+    monkeypatch.setattr(
+        exchange,
+        "listar_versoes_exchange",
+        lambda g, a: [
+            VersaoExchange(versao="1.1.56", publicado_em=datetime(2026, 8, 22, tzinfo=timezone.utc)),
+            VersaoExchange(versao="1.1.54", publicado_em=datetime(2026, 8, 22, tzinfo=timezone.utc)),
+        ],
+    )
+
+    caminho = projeto["raml"] / "api.raml"
+    caminho.write_text(
+        BASE_RAML.replace("  Pedido:\n", "  Pedido:  # MINHA EDICAO LOCAL\n"), encoding="utf-8"
+    )
+
+    r = _rodar(projeto, "pararepo", "raml")
+
+    assert r.exit_code == 0, r.output
+    final = caminho.read_text(encoding="utf-8")
+    assert "MINHA EDICAO LOCAL" in final, "a edicao local nao pode se perder pulando versoes"
+    assert "editado no Exchange" in final, "a mudanca da versao nova nao pode ficar de fora"
 
 
 def test_pararepo_raml_com_conflito_nao_escreve_e_explica(projeto):
