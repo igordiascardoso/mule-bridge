@@ -719,15 +719,56 @@ duas informacoes lado a lado, incluindo o caso "nunca publicado":
 
 ```
 Qual projeto do Design Center?
-  1. teste-ponte      (modificado 22/08 13:40)   publicado: 1.4.0
+  1. teste-ponte      (modificado 22/08 13:40)   publicado: 1.4.0 (22/08 13:40)
   2. outro-projeto    (modificado 22/08 14:17)   nunca publicado
   3. outra opcao — eu digito para filtrar
 ```
 
-Testado tambem o filtro por texto parcial (o usuario digita um trecho do nome, nao o nome
-completo): buscar `"pag"` entre 6 projetos trouxe so o que continha esse trecho; buscar algo
-sem correspondencia (`"zzz"`) devolveu lista vazia, caso que a feature precisa tratar sem
-travar ou dar erro feio.
+**A data de publicacao vem de novo, testado agora com os dados reais da conta de teste:**
+o `exchange asset list --organizationId <org> --output json` traz `createdDate` por versao —
+nao so o numero. Confirmado lado a lado:
+
+```json
+{ "assetId": "teste-ponte", "version": "1.4.0", "createdDate": "2026-08-22T16:40:21.232Z" }
+{ "assetId": "teste-ponte", "version": "1.3.0", "createdDate": "2026-08-22T16:29:35.730Z" }
+```
+
+Por isso o menu mostra a data ao lado da versao publicada, nao so o numero — decisao tomada
+porque a data de "modificado" (Design Center) e a data de "publicado" (Exchange) sao
+independentes, e o fluxo manual antigo criava exatamente esse estado intermediario: alguem
+cola uma mudanca no Design Center e esquece de publicar. Se o menu mostrasse so a versao sem
+data, nao daria para notar que a modificacao e mais recente que a publicacao — ou seja, que
+ha algo pendente. Com as duas datas visiveis, a divergencia fica clara sem precisar de um
+aviso separado.
+
+**Filtro por texto parcial** (o usuario digita um trecho do nome, nao o nome completo):
+buscar `"pag"` entre 6 projetos trouxe so o que continha esse trecho; buscar algo sem
+correspondencia (`"zzz"`) devolveu lista vazia — API nao erra, so nao sobra nada.
+
+**Decisao: alem do filtro exato, sugerir por semelhanca quando nao achar nada.** Testado a
+diferenca entre os dois tipos de busca com um typo real:
+
+```
+digitado "tset-ponte"           (erro de digitacao, faltou trocar duas letras)
+  filtro por substring:  []                    -> nao acha nada
+  busca por semelhanca:  ["teste-ponte"]        -> acha, tolera o typo
+```
+
+Um filtro por substring sozinho falha exatamente no caso mais comum de erro de digitacao
+(letras trocadas), porque "contem o texto" e estrito. A decisao e: se a busca exata nao achar
+nada, comparar por semelhanca (`difflib.get_close_matches` ou equivalente) e sugerir o mais
+proximo, sempre com uma opcao de digitar de novo caso a sugestao esteja errada:
+
+```
+Nenhum projeto com "tset-ponte".
+
+Voce quis dizer teste-ponte?  (modificado 22/08 13:40)   publicado: 1.4.0 (22/08 13:40)
+  1. sim, e esse
+  2. nao, deixa eu digitar de novo
+```
+
+Nunca autocompleta sozinho — a sugestao ainda pede confirmacao, pelo mesmo motivo de nunca
+decidir por conjectura que vale para o resto do menu.
 
 Nao ha campo de "quantidade de commits" na API — a `version` do Design Center (o contador que
 sobe a cada `upload`) e o mais proximo disso, mas nao deveria ser chamado de "commits" no
