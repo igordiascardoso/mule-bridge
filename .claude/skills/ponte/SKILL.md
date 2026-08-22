@@ -9,7 +9,7 @@ Camada fina sobre a CLI `mule-bridge`. **Nao reimplemente nada aqui** — toda a
 (descoberta, sync, merge, reescrita do `pom.xml`) vive na CLI. Esta skill so escolhe o
 comando certo, resolve conflito quando aparece, e reporta o resultado.
 
-## Os oito comandos de sync
+## Os seis jeitos de sincronizar
 
 ```
 ponte parastudio raml      nao copia nada: aponta o pom.xml do workspace para a pasta
@@ -35,7 +35,7 @@ repositorio do usuario. O `parastudio` copia por cima porque o destino e o works
 Studio reconstroi; o `pararepo force` copia por cima do trabalho do usuario, e por isso a
 palavra e sempre dele (ver abaixo).
 
-## Mais tres, que cuidam do pareamento
+## E tres que cuidam do pareamento
 
 ```
 ponte init                 pareia o repo com um projeto do workspace (uma vez por projeto)
@@ -118,6 +118,34 @@ redeploya sozinho. Nao sugira reimportar o projeto nem reiniciar o Studio.
 2. Se o usuario nao rodou `init` ainda, o comando falha pedindo isso. Nao invente a config
    nem escreva o `.mule-bridge.toml` na mao.
 
+## A ordem importa: `pararepo` antes de `parastudio`
+
+O `parastudio` copia por cima. Se o Studio gerou algo desde a ultima sincronizacao e voce
+mandar sem trazer antes, o arquivo do workspace e sobrescrito por uma versao que nao tem o
+que ele gerou — e refazer significa repetir o update no Studio.
+
+**Antes de qualquer `parastudio api`, pergunte-se se houve scaffold.** Na duvida, rode
+`ponte pararepo api` primeiro: se nao houver nada novo, ele reporta "sem mudanca" e nada se
+perde.
+
+## Os cinco fluxos
+
+O scaffold do Studio tem um gatilho so: **o usuario fazer o update da versao** em
+`Properties > Mule Project > APIs`. Nao e o `parastudio raml` que o dispara — esse aponta o
+pom para a pasta local, o que tira o projeto do Exchange.
+
+| Situacao | O caminho |
+|---|---|
+| primeira vez no projeto | `init`, e depois `pararepo raml` para criar a pasta do RAML |
+| saiu versao nova no Exchange | o usuario faz o update no Studio; depois `pararepo api` (traz o scaffold) e `pararepo raml` (traz a especificacao) |
+| quer editar o RAML e o Studio ler | `parastudio raml` — nao ha scaffold neste caminho |
+| mudou codigo, sem tocar no RAML | `parastudio api` |
+| uma pasta saiu do lugar | `status` acusa, `caminho` reaponta, `status` confirma |
+
+**Voltar o pom do workspace ao Exchange nao tem comando.** A dependencia original fica
+comentada no `pom.xml` do workspace: para reverter, apague a que tem `systemPath` e
+descomente a que estava la. Diga isso ao usuario em vez de tentar um comando que nao existe.
+
 ## pararepo raml e api — merge, nao copia
 
 Os dois trazem o que mudou do outro lado **preservando as edicoes locais**: o que os dois
@@ -136,7 +164,8 @@ o projeto do Studio usa. Nao pergunte nada nesse caso — nao ha edicao local pa
 
 ### Quando houver conflito — voce resolve
 
-Quando os dois lados mexeram nas **mesmas linhas**, a CLI pergunta qual fica. Numa sessao de
+Quando os dois lados mexeram no **mesmo ponto do mesmo arquivo**, a CLI pergunta qual
+fica. Numa sessao de
 agente nao ha terminal para responder, entao ela imprime os dois lados e **nao escreve
 nada**. E aqui que voce entra. Para cada arquivo em conflito:
 
