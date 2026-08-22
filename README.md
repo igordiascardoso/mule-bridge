@@ -119,12 +119,17 @@ usual, `--force` para refazer.
 
 ## Fluxos
 
-Seis situações, na ordem em que aparecem. A coluna **Onde** diz se o passo é um comando no
+Cinco situações, na ordem em que aparecem. A coluna **Onde** diz se o passo é um comando no
 terminal ou algo que você faz no Studio.
 
 > [!IMPORTANT]
 > **O `parastudio` copia por cima.** Se o Studio gerou algo desde a última sincronização,
 > traga com `pararepo` antes de mandar — senão você sobrescreve o que ele fez.
+>
+> E se os dois lados mexerem **no mesmo ponto do mesmo arquivo**, o `pararepo` para e
+> pergunta qual versão fica. É raro: pontos diferentes ele junta sozinho, e na prática você
+> mexe nos `services/` enquanto o scaffold mexe no `application.xml`. [Como ele
+> pergunta](#quando-ele-pergunta).
 
 ### 1. Primeira vez neste projeto
 
@@ -182,19 +187,7 @@ Um flow, um `.java`, um `.dwl`.
 > [!TIP]
 > Não há passo extra depois — o Studio detecta a mudança no disco e redeploya sozinho.
 
-### 5. Deu conflito
-
-Os dois lados mexeram no mesmo ponto do mesmo arquivo. Nada é gravado até você decidir.
-
-| | Onde | O que |
-|---|---|---|
-| 1 | terminal | ele mostra as duas versões e pergunta: `1` a sua, `2` a que veio, `3` eu escrevo |
-| 2 | terminal | você responde, ele grava o arquivo e segue para o próximo |
-
-É o único caso que te interrompe, e é raro — [como ele pergunta, e o que acontece sem
-terminal](#quando-ele-pergunta).
-
-### 6. Uma pasta saiu do lugar
+### 5. Uma pasta saiu do lugar
 
 Você renomeou a pasta, ou trocou de máquina e o workspace mudou de caminho.
 
