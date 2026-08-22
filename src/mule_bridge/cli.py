@@ -330,7 +330,8 @@ def init(
     if destino is not None:
         console.print(
             f"\n[dim]Skill do Claude Code instalada em {destino}.\n"
-            "Reinicie a sessao e os comandos valem com barra: `/ponte pararepo api`.[/]"
+            "Abra uma sessao nova do Claude Code — no terminal ou na extensao do VS Code — e\n"
+            "os comandos valem com barra: `/ponte pararepo api`.[/]"
         )
 
     if cfg.raml is None:

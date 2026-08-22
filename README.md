@@ -290,7 +290,9 @@ basta pedir *"manda pro Studio"*. Para ele saber que a ferramenta existe num pro
 [docs/AGENTS-exemplo.md](docs/AGENTS-exemplo.md) no `AGENTS.md` / `CLAUDE.md` daquele repo.
 
 No Claude Code há a skill `/ponte`, e **o `init` já a instala** — nada a baixar ou copiar à
-mão. Reinicie a sessão e os mesmos comandos valem com barra: `/ponte pararepo api`.
+mão. Ela fica em `~/.claude/skills/`, que serve as duas formas de usar o Claude Code: o
+terminal e a extensão do VS Code. Abra uma sessão nova (em qualquer das duas) e os mesmos
+comandos valem com barra: `/ponte pararepo api`.
 
 Cada `init` grava a versão que acompanha a CLI, então a skill nunca fica atrás do que os
 comandos fazem. Ela **nunca acrescenta `force` por conta própria**: essa palavra é sempre do
