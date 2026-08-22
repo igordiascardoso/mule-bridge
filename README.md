@@ -1,7 +1,26 @@
-# mule-bridge
+<div align="center">
 
-Você edita seu projeto Mule no repositório. O Anypoint Studio roda de outra pasta, o
-workspace dele. As duas não se falam — o `ponte` faz essa ponte.
+# 🌉 mule-bridge
+
+**Você edita seu projeto Mule no repositório. O Anypoint Studio roda de outra pasta, o
+workspace dele. As duas não se falam — o `ponte` faz essa ponte.**
+
+[![licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-1f6feb?style=flat-square)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![skill /ponte](https://img.shields.io/badge/Claude_Code-skill%20%2Fponte-d97757?style=flat-square)](#com-agentes-de-ia)
+
+</div>
+
+```
+        SEU REPO                             WORKSPACE DO STUDIO
+   ┌───────────────────┐                    ┌───────────────────┐
+   │  pedidos-api/     │ ──  parastudio  ──▶│  pedidos-api/     │
+   │  pedidos-raml/    │                    │                   │
+   │                   │◀──  pararepo   ────│  o scaffold gera  │
+   │                   │      + merge       │  os flows novos   │
+   └───────────────────┘                    └───────────────────┘
+      você edita aqui                          o Studio roda aqui
+```
 
 ```bash
 pipx install git+https://github.com/igordiascardoso/mule-bridge
@@ -9,18 +28,42 @@ pipx install git+https://github.com/igordiascardoso/mule-bridge
 
 O comando é **`ponte`**. Precisa de Python 3.10+.
 
+<details>
+<summary><b>Índice</b></summary>
+
+- [Os seis jeitos de sincronizar](#os-seis-jeitos-de-sincronizar)
+- [E três que cuidam do pareamento](#e-três-que-cuidam-do-pareamento)
+- [Começando](#começando)
+- [O dia a dia](#o-dia-a-dia)
+- [O merge: trazer o novo sem perder o seu](#o-merge-trazer-o-novo-sem-perder-o-seu)
+- [Duas coisas que ele nunca faz](#duas-coisas-que-ele-nunca-faz)
+- [Com agentes de IA](#com-agentes-de-ia)
+
+</details>
+
 ## Os seis jeitos de sincronizar
 
 ```
-/ponte parastudio raml      faz o Studio ler o RAML que você edita — não copia nada, só muda o pom do workspace
-/ponte parastudio api       copia sua API para o workspace, por cima e sem merge — o seu repo não é tocado
-/ponte parastudio force     copia RAML + API para o workspace, por cima e sem merge — o seu repo não é tocado
-/ponte parastudio           recusa: falta a palavra
+▸ PARA O STUDIO                                    escreve no workspace
 
-/ponte pararepo raml        traz a versão nova do Exchange e faz MERGE na sua pasta de RAML — nada seu se perde
-/ponte pararepo api         traz o que o Studio mudou e faz MERGE na sua pasta da API — nada seu se perde
-/ponte pararepo force    ⚠️  copia RAML + API por cima do seu repo, SEM merge — apaga o que você não commitou
-/ponte pararepo             recusa: falta a palavra
+  /ponte parastudio raml    faz o Studio ler o RAML que você edita
+                            não copia nada, só muda o pom do workspace
+  /ponte parastudio api     copia sua API para o workspace, por cima e sem merge
+                            o seu repo não é tocado
+  /ponte parastudio force   copia RAML + API para o workspace, por cima e sem merge
+                            o seu repo não é tocado
+  /ponte parastudio         recusa: falta a palavra
+
+
+▸ PARA O REPO                                   escreve no seu repositório
+
+  /ponte pararepo raml      traz a versão nova do Exchange e faz MERGE
+                            na sua pasta de RAML — nada seu se perde
+  /ponte pararepo api       traz o que o Studio mudou e faz MERGE
+                            na sua pasta da API — nada seu se perde
+  /ponte pararepo force  ⚠️  copia RAML + API por cima do seu repo, SEM merge
+                            apaga o que você não commitou
+  /ponte pararepo           recusa: falta a palavra
 ```
 
 ## E três que cuidam do pareamento
@@ -34,8 +77,10 @@ O comando é **`ponte`**. Precisa de Python 3.10+.
 Dois comandos, três palavras: `raml`, `api`, `force` — **uma delas é obrigatória**, e elas não
 se combinam (`pararepo raml force` é recusado).
 
-**Só o `pararepo` faz merge.** O `parastudio` copia por cima, e pode: o destino é o workspace,
-que o Studio reconstrói. Já o `pararepo force` copia por cima do **seu** código — daí o ⚠️.
+> [!IMPORTANT]
+> **Só o `pararepo` faz merge.** O `parastudio` copia por cima, e pode: o destino é o
+> workspace, que o Studio reconstrói. Já o `pararepo force` copia por cima do **seu**
+> código — daí o ⚠️.
 
 A barra é a forma do Claude Code, com a [skill instalada](#com-agentes-de-ia). Em qualquer
 outro terminal são os mesmos comandos sem ela: `ponte pararepo api`.
@@ -66,7 +111,7 @@ Sem terminal para responder (agente de IA, IDE, CI), passe por flag:
 
 ```bash
 ponte init --api pedidos-api --raml pedidos-raml \
-  --studio-api minha-api --studio-raml minha-api-raml
+  --studio-api pedidos-api --studio-raml pedidos-api-raml
 ```
 
 `--raml nenhuma` se não houver RAML, `--studio-root` se o workspace não está num caminho
@@ -89,8 +134,9 @@ Saiu versão nova do RAML no Exchange:
 /ponte parastudio api      # manda para o Studio testar
 ```
 
-Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no disco
-e redeploya sozinho.
+> [!TIP]
+> Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no
+> disco e redeploya sozinho.
 
 ## O merge: trazer o novo sem perder o seu
 
@@ -170,8 +216,9 @@ merge parte da versão que a **sua pasta** tem, não da que o `pom.xml` aponta. 
 - **Mexer no `pom.xml` do seu repositório.** Para o Studio ler seu RAML local a referência
   precisa mudar, e essa reescrita acontece **só no workspace**. Aqui ele segue apontando para
   o Exchange, que é o que vai para o remoto.
-- **Apagar arquivo.** Um que só existe de um lado continua lá. Se você apagou algo aqui,
-  apague no outro lado também.
+- **Apagar arquivo por conta própria.** Nenhum dos comandos remove nada: um arquivo que
+  existe só no repo continua lá, e um que existe só no workspace também. Se você apagou um
+  flow no repo, apague no workspace do Studio também — senão ele segue rodando lá.
 
 Nem `.git`, `target`, `.mule` ou `.settings` são sincronizados — é lista configurável no
 `.mule-bridge.toml`.
@@ -194,8 +241,15 @@ usuário.
 ## Se `ponte` não for encontrado
 
 O pacote instalou, mas o terminal não sabe onde procurar. **Abriu um terminal novo depois de
-instalar?** É a causa mais comum. Se não resolver, rode `python -m pipx ensurepath`, feche e
-abra outro. E `python -m mule_bridge` funciona sem depender do `PATH`.
+instalar?** É a causa mais comum — o `PATH` só vale para terminais abertos depois.
+
+Se não resolver:
+
+```bash
+python -m pipx ensurepath
+```
+
+Feche o terminal, abra outro, e `ponte` responde.
 
 ## Licença
 
