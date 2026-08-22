@@ -31,8 +31,18 @@ Quando a feature for implementada, isso entra no README como pre-requisito manua
 jeito que hoje se pede para instalar o `git`. Ate la, o pre-requisito e este, valido para
 quem for testar os comandos abaixo:
 
+**Node 22+ e obrigatorio antes do `npm install`** — a `anypoint-cli-v4-public` nao roda em
+versao mais antiga (testado: com Node 20.18 instalado, precisou atualizar para 24.19.0 para
+funcionar).
+
 ```bash
+# 1. Node 22+ (verificar com node -v; instalar/atualizar em nodejs.org se for menor que isso)
+node -v
+
+# 2. a CLI da Anypoint
 npm install -g anypoint-cli-v4-public
+
+# 3. a credencial, uma vez por maquina
 anypoint-cli-v4 conf client_id SEU_ID
 anypoint-cli-v4 conf client_secret SEU_SECRET
 ```
