@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,9 +13,10 @@ from rich.console import Console
 from rich.syntax import Syntax
 from rich.table import Table
 
-from . import __version__, config, discovery, editorconfig, pomrewrite, reconcile
+from . import __version__, config, discovery, editorconfig, exchange, pomrewrite, ramlvalidate, reconcile
 from .config import BridgeConfig, ProjectPair
 from .errors import BridgeError, ConfigError, DiscoveryError, NonInteractiveError
+from .exchange import ExchangeError
 from .sync import Direction, SyncPlan, sync_all
 
 app = typer.Typer(
@@ -107,6 +109,144 @@ def _pick(
 
     disponiveis = ", ".join(o.split()[0] for o in options)
     raise ConfigError(f"{flag} {given!r} nao encontrado. Opcoes: {disponiveis}")
+
+
+@dataclass
+class ProjetoEscolhido:
+    """O projeto do Design Center escolhido, com os dados do Exchange ja lidos.
+
+    `group_id`/`asset_id`/`main` vem do `exchange.json` dentro do proprio projeto — a
+    unica fonte confiavel do vinculo com o Exchange (ver docs/DESIGN-CENTER-CLI.md, "Um
+    projeto do Design Center por par": cruzar por nome e armadilha confirmada). `None`
+    quando o projeto nunca foi publicado, e portanto nao tem `exchange.json` ainda.
+    """
+
+    id: str
+    nome: str
+    group_id: str | None
+    asset_id: str | None
+    main: str | None
+    api_version: str | None
+
+
+def _baixar_para_ler_exchange_json(projeto_id: str, nome: str) -> dict | None:
+    """Baixa um projeto do Design Center numa pasta temporaria so para ler o exchange.json.
+
+    E o unico jeito confiavel de achar o vinculo com o Exchange antes de decidir qual
+    projeto usar — o `project list` nao traz `assetId`. `None` quando o projeto ainda nao
+    tem `exchange.json` (nunca publicado) ou a leitura falha.
+    """
+    with tempfile.TemporaryDirectory(prefix="mule-bridge-dc-") as tmp:
+        destino = Path(tmp) / nome
+        try:
+            exchange.baixar_projeto_design_center(nome, destino)
+            return exchange.ler_exchange_json(destino)
+        except ExchangeError:
+            return None
+
+
+def _escolher_projeto_design_center() -> ProjetoEscolhido:
+    """Lista os projetos do Design Center e pede qual usar — nunca cruza por nome.
+
+    Baixa cada projeto numa pasta temporaria so para ler o `exchange.json` de dentro e
+    mostrar a versao do Exchange no menu, sempre rotulada explicitamente como tal e
+    sempre a mais recente (ver docs/DESIGN-CENTER-CLI.md, "Formato decidido para o menu").
+    Essa linha e so para ajudar a escolher o projeto — nunca decide nada por conta propria.
+    """
+    projetos = exchange.listar_projetos_design_center()
+    if not projetos:
+        raise ExchangeError(
+            "Nenhum projeto no Design Center desta organizacao. Crie um primeiro "
+            "(`anypoint-cli-v4 designcenter project create`)."
+        )
+
+    console.print("[dim]Consultando o Exchange de cada projeto...[/]")
+    infos = [_baixar_para_ler_exchange_json(p.id, p.nome) for p in projetos]
+
+    labels = []
+    for p, info in zip(projetos, infos):
+        rotulo_dc = f"modificado {exchange.em_brasilia(p.modificado_em)}"
+        if info is None:
+            rotulo_ex = "nunca publicado no Exchange"
+        else:
+            versoes = exchange.listar_versoes_exchange(info["groupId"], info["assetId"])
+            rotulo_ex = (
+                f"versao no Exchange: {versoes[0].versao} "
+                f"(latest, {exchange.em_brasilia(versoes[0].publicado_em)})"
+                if versoes
+                else "nunca publicado no Exchange"
+            )
+        labels.append(f"{p.nome}  ({rotulo_dc})   {rotulo_ex}")
+
+    idx = _choose("Qual projeto do Design Center?", labels, flag="--designcenter")
+    escolhido, info = projetos[idx], infos[idx]
+
+    return ProjetoEscolhido(
+        id=escolhido.id,
+        nome=escolhido.nome,
+        group_id=info["groupId"] if info else None,
+        asset_id=info["assetId"] if info else None,
+        main=info["main"] if info else None,
+        api_version=info.get("apiVersion") if info else None,
+    )
+
+
+def _escolher_versao_exchange(projeto: ProjetoEscolhido) -> str:
+    """Menu de 4 opcoes para trazer uma versao do Exchange: latest + 2 anteriores + livre.
+
+    Formato decidido em docs/DESIGN-CENTER-CLI.md ("Decisao de design: menu de versoes ao
+    trazer do Exchange"): numero da versao + data, e a quarta opcao aceita qualquer versao
+    digitada, nao so as tres mais recentes.
+    """
+    if projeto.group_id is None or projeto.asset_id is None:
+        raise ExchangeError(
+            f"O projeto {projeto.nome} nunca foi publicado no Exchange — nao ha versao "
+            "para trazer. Publique primeiro com `ponte publicardesign`."
+        )
+
+    versoes = exchange.listar_versoes_exchange(projeto.group_id, projeto.asset_id)
+    if not versoes:
+        raise ExchangeError(f"Nenhuma versao publicada de {projeto.asset_id} no Exchange.")
+
+    DIGITO = "outra versao — eu digito"
+    labels = [
+        f"{'mais atual — ' if i == 0 else ''}{v.versao}  ({exchange.em_brasilia(v.publicado_em)})"
+        for i, v in enumerate(versoes[:3])
+    ]
+    labels.append(DIGITO)
+
+    idx = _choose("Qual versao do RAML trazer?", labels, flag="--versao-exchange")
+    if idx < len(versoes[:3]):
+        return versoes[idx].versao
+
+    try:
+        return typer.prompt("Versao").strip()
+    except (typer.Abort, EOFError, OSError) as exc:
+        raise NonInteractiveError(
+            "Qual versao do RAML trazer? — nao ha terminal interativo para perguntar.\n"
+            "Repita o comando com `--versao-exchange <versao>`."
+        ) from exc
+
+
+def _validar_raml_ou_falhar(pasta: Path, main: str) -> None:
+    """Recusa upload/publish quando o `.raml` principal nao tem o cabecalho `#%RAML`.
+
+    O Exchange nem sempre recusa isso — as vezes publica em silencio, sem a documentacao
+    que o time espera (ver docs/DESIGN-CENTER-CLI.md, "O RAML mal formado nao sempre
+    falha"). Checar antes de chamar a CLI e a unica forma de nao deixar isso passar calado.
+    """
+    problemas = ramlvalidate.validar(pasta, main=main)
+    if not problemas:
+        return
+    detalhes = "\n".join(
+        f"  {p.caminho}: primeira linha e {p.primeira_linha!r}, esperava comecar com #%RAML"
+        for p in problemas
+    )
+    raise ExchangeError(
+        f"{len(problemas)} arquivo(s) sem o cabecalho #%RAML — o Exchange pode aceitar "
+        "isso e publicar sem documentacao, em silencio. Corrija antes de continuar:\n"
+        f"{detalhes}"
+    )
 
 
 def _escolher_workspace() -> Path:
@@ -600,6 +740,141 @@ def pararepo(
     _run(Direction.PULL, work_root, delete, dry_run, None)
 
 
+@app.command()
+def paradesign(
+    palavras: list[str] | None = typer.Argument(
+        None, help="'raml'. E a unica palavra aceita, e e obrigatoria."
+    ),
+    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", hidden=True),
+) -> None:
+    """Manda o RAML editado localmente para o Design Center, sem publicar no Exchange.
+
+
+    ponte paradesign raml     upload do RAML local para o projeto do Design Center
+
+    So versiona no Design Center (a revisao sobe a cada chamada); nao apaga o que existe
+    la e nao existe local, e nao publica no Exchange — quem faz isso e `publicardesign`.
+    """
+    if not palavras or palavras[0].strip().lower() not in {"raml"}:
+        raise typer.BadParameter("Falta a palavra: `ponte paradesign raml`.")
+
+    try:
+        cfg = _load(_resolve_root(work_root))
+        if cfg.raml is None or not (cfg.work_root / cfg.raml.work).is_dir():
+            raise ConfigError(
+                "Nao ha pasta de RAML pareada e no disco. Rode `ponte pararepo raml` "
+                "primeiro, para trazer uma versao do Exchange e criar a pasta."
+            )
+        pasta_raml = cfg.work_root / cfg.raml.work
+        projeto = _escolher_projeto_design_center()
+
+        # O `main` que vale e o da pasta que vai subir, se ela ja tiver um exchange.json
+        # local (de um `pararepo raml` anterior) — cai para o do projeto no Design Center
+        # so quando a pasta local ainda nao tem um (upload inicial, projeto novo).
+        main = (
+            exchange.ler_exchange_json(pasta_raml).get("main")
+            if (pasta_raml / "exchange.json").is_file()
+            else projeto.main
+        ) or "api.raml"
+        _validar_raml_ou_falhar(pasta_raml, main)
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    console.print(f"[bold]Enviando {pasta_raml} para o Design Center ({projeto.nome})[/]")
+    if dry_run:
+        console.print("[dim]Isso foi uma previa — nada foi enviado.[/]")
+        return
+
+    try:
+        exchange.upload_design_center(projeto.nome, pasta_raml)
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    console.print(
+        f"[green]Pronto:[/] {pasta_raml.name} enviado para o Design Center.\n"
+        "[dim]Para publicar essa revisao no Exchange, rode `ponte publicardesign`.[/]"
+    )
+
+
+@app.command()
+def publicardesign(
+    work_root: Path | None = typer.Option(None, "--work-root", "-w"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", hidden=True),
+) -> None:
+    """Publica no Exchange a revisao atual do projeto no Design Center.
+
+    Mostra a versao atualmente publicada (se houver) antes de confirmar, para nao
+    publicar por engano pensando que "sempre foi a primeira vez". O `mainFile` e sempre
+    passado explicitamente (lido do `exchange.json` do projeto) — publicar sem isso pode
+    publicar o placeholder do Design Center em silencio (ver docs/DESIGN-CENTER-CLI.md).
+    """
+    try:
+        _load(_resolve_root(work_root))  # so para validar que ha config nesta pasta
+        projeto = _escolher_projeto_design_center()
+        if projeto.asset_id is None or projeto.group_id is None:
+            console.print(
+                f"[yellow]{projeto.nome} nunca foi publicado no Exchange.[/] "
+                "Esta sera a primeira versao."
+            )
+            versoes = []
+        else:
+            versoes = exchange.listar_versoes_exchange(projeto.group_id, projeto.asset_id)
+            if versoes:
+                console.print(
+                    f"[bold]Versao publicada hoje:[/] {versoes[0].versao} "
+                    f"({exchange.em_brasilia(versoes[0].publicado_em)})"
+                )
+            else:
+                console.print(f"[yellow]{projeto.nome} nunca foi publicado no Exchange.[/]")
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    if projeto.main is None:
+        raise _fail(
+            ExchangeError(
+                f"Nao ha exchange.json em {projeto.nome} com um `main` definido — "
+                "faca um `ponte paradesign raml` primeiro."
+            )
+        )
+
+    try:
+        # Valida o que esta de fato no Design Center agora — nao a pasta local, que pode
+        # ja ter mudado desde o ultimo `paradesign raml` — porque e isso que o publish vai
+        # publicar.
+        with tempfile.TemporaryDirectory(prefix="mule-bridge-validar-") as tmp:
+            destino = exchange.baixar_projeto_design_center(projeto.nome, Path(tmp) / "atual")
+            _validar_raml_ou_falhar(destino, projeto.main)
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    try:
+        versao_nova = typer.prompt("Nova versao a publicar (formato X.Y.Z)")
+    except (typer.Abort, EOFError, OSError) as exc:
+        raise _fail(
+            NonInteractiveError(
+                "Nova versao a publicar — nao ha terminal interativo para perguntar."
+            )
+        ) from exc
+
+    api_version = projeto.api_version or "v1"
+    console.print(
+        f"[bold]Publicando {projeto.nome} {versao_nova} no Exchange[/] (main: {projeto.main})"
+    )
+    if dry_run:
+        console.print("[dim]Isso foi uma previa — nada foi publicado.[/]")
+        return
+
+    try:
+        exchange.publicar_exchange(
+            projeto.nome, main=projeto.main, api_version=api_version, versao=versao_nova
+        )
+    except BridgeError as exc:
+        raise _fail(exc) from exc
+
+    console.print(f"[green]Publicado:[/] {projeto.nome} {versao_nova} no Exchange.")
+
+
 def _apontar_raml_local(cfg: BridgeConfig, dry_run: bool) -> None:
     """Aponta o `pom.xml` do Studio para a pasta local do RAML.
 
@@ -687,7 +962,12 @@ def _juntar_raml(
     dry_run: bool = False,
     versao_nova: str | None = None,
 ) -> None:
-    """Traz a versao nova do RAML preservando as edicoes locais (base + suas por cima).
+    """Traz a versao nova do RAML do Exchange, preservando as edicoes locais.
+
+    Comportamento mudado (ver docs/DESIGN-CENTER-CLI.md, "Decisao final: os tres
+    comandos"): busca direto do Exchange, sem depender do Studio ter feito update. Dois
+    passos obrigatorios, nesta ordem: escolher o projeto do Design Center, depois a
+    versao do Exchange daquele projeto. So depois o merge roda, como antes.
 
     Os arquivos que os dois lados mexeram em lugares diferentes o merge junta sozinho. O
     que colidiu na mesma linha e perguntado na hora, e nada fica com marcador no arquivo.
@@ -695,47 +975,52 @@ def _juntar_raml(
     try:
         cfg = _load(_resolve_root(work_root))
 
-        coords = pomrewrite.read_raml_coords(cfg.work_root / cfg.api.work / "pom.xml")
-        if coords is None:
-            raise ConfigError("O pom.xml nao referencia um RAML do Exchange.")
-        grupo, artefato, versao_atual = coords
-
         # Sem pasta no disco nao ha nada a preservar, e a criamos. Mas se a config diz
         # `raml = None` e a pasta existe, ela pode ter trabalho dentro: adotamos a que
-        # esta la em vez de extrair por cima.
+        # esta la em vez de extrair por cima — igual ao comportamento de sempre.
+        pasta_raml = cfg.work_root / cfg.raml.work if cfg.raml else None
+        if pasta_raml is not None and pasta_raml.is_dir():
+            versao_atual = reconcile.versao_da_pasta(pasta_raml)
+        else:
+            versao_atual = None
+            pasta_raml = None
+
+        projeto = _escolher_projeto_design_center()
+        if versao_nova is None:
+            versao_nova = _escolher_versao_exchange(projeto)
+
         if cfg.raml is None:
-            candidata = cfg.work_root / f"{artefato}-raml"
+            candidata = cfg.work_root / f"{projeto.asset_id}-raml"
             if candidata.is_dir():
                 cfg.raml = ProjectPair(candidata.name, candidata.name)
                 config.save(cfg)
                 console.print(f"[dim]Adotando a pasta {candidata.name}, que ja existe.[/]")
+                pasta_raml = candidata
+                versao_atual = reconcile.versao_da_pasta(pasta_raml)
             else:
-                _criar_pasta_raml(cfg, grupo, artefato, dry_run)
+                _criar_pasta_raml(cfg, projeto, versao_nova, dry_run)
                 return
-        elif not (cfg.work_root / cfg.raml.work).is_dir():
-            _criar_pasta_raml(cfg, grupo, artefato, dry_run)
+        elif pasta_raml is None:
+            _criar_pasta_raml(cfg, projeto, versao_nova, dry_run)
             return
 
-        # A base do merge e a versao que a pasta REALMENTE tem, nao a que o pom aponta. Os
-        # dois discordam sempre que se pula versao ou se esquece de subir o pom (que este
-        # comando pede para fazer a mao) — e partir do pom fazia as mudancas ocorridas
-        # entre as duas aparecerem como suas, virando conflito em arquivo intocado.
-        versao_atual = (
-            reconcile.versao_da_pasta(cfg.work_root / cfg.raml.work) or versao_atual
-        )
+        with tempfile.TemporaryDirectory(prefix="mule-bridge-exchange-") as tmp:
+            novo_dir = exchange.baixar_versao_exchange(
+                projeto.group_id, projeto.asset_id, versao_nova, Path(tmp) / "novo"
+            )
+            if versao_atual and versao_atual != versao_nova:
+                base_dir = exchange.baixar_versao_exchange(
+                    projeto.group_id, projeto.asset_id, versao_atual, Path(tmp) / "base"
+                )
+            else:
+                base_dir = novo_dir
 
-        if versao_nova is None:
-            versao_nova = _versao_alvo(cfg, grupo, artefato, versao_atual)
-
-        r = reconcile.preparar(
-            cfg.work_root / cfg.raml.work, grupo, artefato, versao_atual, versao_nova
-        )
+            r = reconcile.reconciliar(pasta_raml, base_dir, novo_dir, versao_atual or versao_nova, versao_nova)
     except BridgeError as exc:
         raise _fail(exc) from exc
 
     _report_raml(r)
 
-    pasta_raml = cfg.work_root / cfg.raml.work
     resolucoes = None
     if not r.limpo:
         try:
@@ -751,7 +1036,7 @@ def _juntar_raml(
         pasta_raml,
         cfg.work_root,
         cfg.raml.work,
-        f"chore(raml): especificacao {artefato} {versao_nova}",
+        f"chore(raml): especificacao {projeto.asset_id} {versao_nova}",
         resolucoes=resolucoes,
     )
     console.print(f"\n[green]{escritos} arquivo(s) atualizado(s) em {cfg.raml.work}.[/]")
@@ -759,38 +1044,21 @@ def _juntar_raml(
     if commitou:
         console.print(
             f"[dim]O que veio do Exchange foi commitado a parte "
-            f"(chore(raml): {artefato} {versao_nova}).\n"
+            f"(chore(raml): {projeto.asset_id} {versao_nova}).\n"
             "O que restou no git e o seu trabalho — de um `git diff` para ver so ele.[/]"
         )
-    console.print(
-        f"[dim]Lembre de apontar o pom.xml para {versao_nova} quando for commitar.[/]"
-    )
 
 
 def _criar_pasta_raml(
-    cfg: BridgeConfig, grupo: str, artefato: str, dry_run: bool = False
+    cfg: BridgeConfig, projeto: ProjetoEscolhido, versao: str, dry_run: bool = False
 ) -> None:
-    """Cria a pasta do RAML na raiz do repositorio, extraindo a versao que o Studio usa.
+    """Cria a pasta do RAML na raiz do repositorio, baixando do Exchange.
 
-    Sem pasta nao ha nada para preservar, entao nao ha o que perguntar: pega a versao que
-    o projeto do Studio aponta (ou a mais alta do cache) e extrai. Quando a config ainda
-    nao tem a pasta, ela e gravada junto, para os proximos comandos ja acharem.
+    Sem pasta nao ha nada para preservar, entao nao ha o que perguntar: baixa a versao ja
+    escolhida direto. Quando a config ainda nao tem a pasta, ela e gravada junto, para os
+    proximos comandos ja acharem.
     """
-    pom_studio = cfg.studio_root / cfg.api.studio / "pom.xml"
-    versao = None
-    if pom_studio.is_file():
-        c = pomrewrite.read_raml_coords(pom_studio)
-        versao = c[2] if c else None
-    if versao is None:
-        disponiveis = reconcile.versoes_no_cache(grupo, artefato)
-        if not disponiveis:
-            raise ConfigError(
-                f"O RAML de {artefato} nao esta no cache do Maven.\n"
-                "Abra o projeto no Studio para ele baixar a especificacao primeiro."
-            )
-        versao = disponiveis[-1]
-
-    nome = cfg.raml.work if cfg.raml else f"{artefato}-raml"
+    nome = cfg.raml.work if cfg.raml else f"{projeto.asset_id}-raml"
     destino = cfg.work_root / nome
 
     if destino.is_dir():
@@ -800,13 +1068,13 @@ def _criar_pasta_raml(
             "Rode `ponte init --force` para pareá-la, e o comando passa a fazer merge."
         )
 
-    console.print(f"[bold]A pasta do RAML nao existe — criando de {artefato} {versao}.[/]")
+    console.print(f"[bold]A pasta do RAML nao existe — criando de {projeto.asset_id} {versao}.[/]")
     console.print(f"  destino: {destino}")
 
     if dry_run:
         return
 
-    reconcile.extrair(reconcile.caminho_no_cache(grupo, artefato, versao), destino)
+    exchange.baixar_versao_exchange(projeto.group_id, projeto.asset_id, versao, destino)
     quantos = sum(1 for p in destino.rglob("*") if p.is_file())
     console.print(f"[green]{quantos} arquivo(s) extraido(s) em {nome}.[/]")
 
@@ -820,7 +1088,7 @@ def _criar_pasta_raml(
     # A extracao ja aconteceu, entao uma falha aqui e avisada, nao aborta o comando.
     try:
         if reconcile.commitar_base(
-            cfg.work_root, nome, f"chore(raml): base da especificacao {artefato} {versao}"
+            cfg.work_root, nome, f"chore(raml): base da especificacao {projeto.asset_id} {versao}"
         ):
             console.print(
                 f"[green]Pronto:[/] {nome} esta na {versao} e commitada como base.\n"
@@ -834,33 +1102,6 @@ def _criar_pasta_raml(
     except BridgeError as exc:
         console.print(f"[yellow]Os arquivos estao no disco, mas nao commitei a base:[/] {exc}")
         console.print(f"[dim]Para commitar: git add {nome} && git commit[/]")
-
-
-def _versao_alvo(cfg: BridgeConfig, grupo: str, artefato: str, versao_atual: str) -> str:
-    """Descobre para qual versao do RAML trazer.
-
-    A mais alta ja baixada no cache do Maven e o alvo — em desenvolvimento e sempre ela
-    que interessa, tenha sido o Studio ou um `mvn dependency:get` quem a baixou. O
-    `pom.xml` do lado do Studio entra so como desempate, quando o cache nao tem nada mais
-    novo mas o Studio aponta para outra versao.
-    """
-    mais_altas = reconcile.mais_novas_que(
-        reconcile.versoes_no_cache(grupo, artefato), versao_atual
-    )
-    if mais_altas:
-        return mais_altas[-1]
-
-    pom_studio = cfg.studio_root / cfg.api.studio / "pom.xml"
-    if pom_studio.is_file():
-        coords = pomrewrite.read_raml_coords(pom_studio)
-        if coords and coords[2] != versao_atual:
-            console.print(f"[dim]O Studio aponta para a {coords[2]} — trazendo essa versao.[/]")
-            return coords[2]
-
-    raise ConfigError(
-        f"Nao ha versao mais nova para trazer — a mais alta baixada e a {versao_atual}.\n"
-        "Faca o update do Exchange no Studio (Properties > Mule Project > APIs) primeiro."
-    )
 
 
 def _report_raml(r: reconcile.Reconciliacao, origem: str = "Exchange") -> None:

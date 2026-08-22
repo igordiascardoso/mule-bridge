@@ -10,15 +10,19 @@ from __future__ import annotations
 
 import subprocess
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 import typer
 from typer.testing import CliRunner
 
-from mule_bridge import config
+from mule_bridge import config, exchange
 from mule_bridge.cli import PALAVRAS, _parse_palavras, app
 from mule_bridge.config import BridgeConfig, ProjectPair
+from mule_bridge.exchange import ProjetoDesignCenter, VersaoExchange
+
+GROUP_ID = "grupo-org-teste"
 
 runner = CliRunner()
 
@@ -193,11 +197,52 @@ def projeto(tmp_path, monkeypatch):
             raml=ProjectPair("pedidos-raml", None),
         )
     )
+
+    # `pararepo raml` agora busca do Exchange (mockado), nao do cache do Maven acima —
+    # o cache continua so para o `parastudio`/`pararepo api`, que nao mudaram.
+    projeto_dc = ProjetoDesignCenter(
+        id="proj-1", nome="pedidos", modificado_em=datetime(2026, 8, 22, tzinfo=timezone.utc)
+    )
+    monkeypatch.setattr(exchange, "listar_projetos_design_center", lambda: [projeto_dc])
+
+    def fake_baixar_projeto(nome, destino):
+        destino.mkdir(parents=True, exist_ok=True)
+        (destino / "exchange.json").write_text(
+            f'{{"groupId": "{GROUP_ID}", "assetId": "pedidos", "main": "api.raml", '
+            f'"apiVersion": "v1", "version": "1.1.0"}}',
+            encoding="utf-8",
+        )
+        return destino
+
+    monkeypatch.setattr(exchange, "baixar_projeto_design_center", fake_baixar_projeto)
+    monkeypatch.setattr(
+        exchange,
+        "listar_versoes_exchange",
+        lambda g, a: [
+            VersaoExchange(versao="1.1.0", publicado_em=datetime(2026, 8, 22, tzinfo=timezone.utc))
+        ],
+    )
+
+    def fake_baixar_versao(group_id, asset_id, versao, destino):
+        destino.mkdir(parents=True, exist_ok=True)
+        (destino / "api.raml").write_text(BASE_RAML, encoding="utf-8")
+        if versao == "1.1.0":
+            (destino / "domain").mkdir(exist_ok=True)
+            (destino / "domain" / "novo.raml").write_text(
+                "#%RAML 1.0 DataType\ntype: object\n", encoding="utf-8"
+            )
+        return destino
+
+    monkeypatch.setattr(exchange, "baixar_versao_exchange", fake_baixar_versao)
+
     return {"work": work, "studio": studio, "raml": raml}
 
 
 def _rodar(projeto, *args):
-    return runner.invoke(app, ["pararepo", *args, "-w", str(projeto["work"])])
+    entrada = "1\n1\n" if args[:1] == ("raml",) else None
+    return runner.invoke(
+        app, ["pararepo", *args, "-w", str(projeto["work"])], input=entrada
+    )
 
 
 def test_pararepo_sem_palavra_nao_escreve(projeto):

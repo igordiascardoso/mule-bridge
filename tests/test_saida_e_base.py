@@ -6,19 +6,21 @@ o comando. A base do merge: ela vem da pasta, nunca do `pom.xml`, que fica atras
 
 from __future__ import annotations
 
-import json
 import subprocess
-import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
-from mule_bridge import cli, config
+from mule_bridge import cli, config, exchange
 from mule_bridge.cli import app
 from mule_bridge.config import BridgeConfig, ProjectPair
+from mule_bridge.exchange import ProjetoDesignCenter, VersaoExchange
 
 runner = CliRunner()
+
+GROUP_ID = "grupo-org-teste"
 
 #: Caracteres fora do cp1252 achados em codigo Mule de verdade: a seta de um comentario de
 #: regra de negocio, e a moldura de um bloco de separacao.
@@ -51,54 +53,72 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     )
 
 
-def _zip_raml(m2: Path, versao: str, arquivos: dict[str, str]) -> None:
-    """Publica uma versao no cache do Maven, com `exchange.json` como o Exchange faz."""
-    destino = m2 / "grupo" / "pedidos" / versao / f"pedidos-{versao}-raml.zip"
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destino, "w") as z:
-        z.writestr(
-            "exchange.json",
-            json.dumps({"groupId": "grupo", "assetId": "pedidos", "version": versao}),
-        )
-        for rel, conteudo in arquivos.items():
-            z.writestr(rel, conteudo)
-
-
-def _extrair(m2: Path, versao: str, destino: Path) -> None:
-    zip_ = m2 / "grupo" / "pedidos" / versao / f"pedidos-{versao}-raml.zip"
-    destino.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(zip_) as z:
-        z.extractall(destino)
-
-
 # --- A base do merge vem da pasta, nao do pom -----------------------------------------
 
 
 @pytest.fixture
 def tres_versoes(tmp_path, monkeypatch):
-    """Cache com 1.1.52, 1.1.53 e 1.1.54, cada uma mexendo num arquivo diferente.
+    """Exchange mockado com 1.1.52, 1.1.53 e 1.1.54, cada uma mexendo num arquivo.
 
-    A pasta local fica na 1.1.52 e o `pom.xml` diz 1.1.54 — o desencontro que aparece
-    quando se pula versao, ou quando se esquece de subir o pom a mao depois de um merge.
+    A pasta local fica na 1.1.52 (lido do `exchange.json` de dentro dela) e a escolha do
+    menu de versao vai direto para a 1.1.54 — o salto que aparece quando se pula versao.
     """
     work, studio = tmp_path / "repo", tmp_path / "ws"
-    m2 = tmp_path / "casa" / ".m2" / "repository"
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "casa"))
 
     api = work / "pedidos-api" / "src" / "main" / "mule"
     api.mkdir(parents=True)
-    # O pom aponta para a 1.1.54, duas versoes a frente da pasta.
     (work / "pedidos-api" / "pom.xml").write_text(POM.format(versao="1.1.54"), encoding="utf-8")
     (studio / "studio-pedidos" / "src" / "main" / "mule").mkdir(parents=True)
     (studio / "studio-pedidos" / "pom.xml").write_text(
         POM.format(versao="1.1.54"), encoding="utf-8"
     )
 
-    _zip_raml(m2, "1.1.52", {"api.raml": "#%RAML 1.0\ntitle: Pedidos\n", "tipos.raml": "T: v52\n"})
-    _zip_raml(m2, "1.1.53", {"api.raml": "#%RAML 1.0\ntitle: Pedidos\n", "tipos.raml": "T: v53\n"})
-    _zip_raml(m2, "1.1.54", {"api.raml": "#%RAML 1.0\ntitle: Pedidos\n", "tipos.raml": "T: v54\n"})
+    conteudo_por_versao = {
+        "1.1.52": {"api.raml": "#%RAML 1.0\ntitle: Pedidos\n", "tipos.raml": "T: v52\n"},
+        "1.1.53": {"api.raml": "#%RAML 1.0\ntitle: Pedidos\n", "tipos.raml": "T: v53\n"},
+        "1.1.54": {"api.raml": "#%RAML 1.0\ntitle: Pedidos\n", "tipos.raml": "T: v54\n"},
+    }
+    projeto_dc = ProjetoDesignCenter(
+        id="proj-1", nome="pedidos", modificado_em=datetime(2026, 8, 22, tzinfo=timezone.utc)
+    )
+    monkeypatch.setattr(exchange, "listar_projetos_design_center", lambda: [projeto_dc])
 
-    _extrair(m2, "1.1.52", work / "pedidos-raml")
+    def fake_baixar_projeto(nome, destino):
+        destino.mkdir(parents=True, exist_ok=True)
+        (destino / "exchange.json").write_text(
+            f'{{"groupId": "{GROUP_ID}", "assetId": "pedidos", "main": "api.raml", '
+            f'"apiVersion": "v1", "version": "1.1.54"}}',
+            encoding="utf-8",
+        )
+        return destino
+
+    monkeypatch.setattr(exchange, "baixar_projeto_design_center", fake_baixar_projeto)
+    monkeypatch.setattr(
+        exchange,
+        "listar_versoes_exchange",
+        lambda g, a: [
+            VersaoExchange(versao=v, publicado_em=datetime(2026, 8, 22, tzinfo=timezone.utc))
+            for v in sorted(conteudo_por_versao, reverse=True)
+        ],
+    )
+
+    def fake_baixar_versao(group_id, asset_id, versao, destino):
+        destino.mkdir(parents=True, exist_ok=True)
+        for rel, texto in conteudo_por_versao[versao].items():
+            (destino / rel).write_text(texto, encoding="utf-8")
+        return destino
+
+    monkeypatch.setattr(exchange, "baixar_versao_exchange", fake_baixar_versao)
+
+    # A pasta local fica na 1.1.52, com o exchange.json dizendo essa versao — e dele que
+    # `versao_da_pasta` le a base, nunca do pom (que aqui aponta para a 1.1.54).
+    pasta_raml = work / "pedidos-raml"
+    fake_baixar_versao(GROUP_ID, "pedidos", "1.1.52", pasta_raml)
+    (pasta_raml / "exchange.json").write_text(
+        f'{{"groupId": "{GROUP_ID}", "assetId": "pedidos", "main": "api.raml", '
+        f'"apiVersion": "v1", "version": "1.1.52"}}',
+        encoding="utf-8",
+    )
 
     config.save(
         BridgeConfig(
@@ -113,7 +133,7 @@ def tres_versoes(tmp_path, monkeypatch):
     _git(work, "config", "user.name", "t")
     _git(work, "add", "-A")
     _git(work, "commit", "-q", "-m", "base 1.1.52")
-    return {"work": work, "m2": m2}
+    return {"work": work}
 
 
 def test_a_base_do_merge_e_a_versao_da_pasta_e_nao_a_do_pom(tres_versoes):
@@ -126,7 +146,8 @@ def test_a_base_do_merge_e_a_versao_da_pasta_e_nao_a_do_pom(tres_versoes):
     """
     work = tres_versoes["work"]
 
-    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="")
+    # 1 = unico projeto do Design Center; 1 = mais atual (1.1.54) no menu de versoes.
+    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="1\n1\n")
 
     assert "1.1.52 -> 1.1.54" in result.output, (
         f"a base deveria ser a da pasta (1.1.52), nao a do pom (1.1.54):\n{result.output}"
@@ -143,7 +164,7 @@ def test_edicao_local_sobrevive_ao_salto_de_versao(tres_versoes):
     meu = work / "pedidos-raml" / "api.raml"
     meu.write_text(meu.read_text(encoding="utf-8") + "\n/meu-endpoint:\n  get:\n", encoding="utf-8")
 
-    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="")
+    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="1\n1\n")
 
     assert result.exit_code == 0, f"a minha edicao nao colide com nada:\n{result.output}"
     assert "/meu-endpoint" in meu.read_text(encoding="utf-8"), "a edicao local foi perdida"

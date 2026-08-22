@@ -502,6 +502,88 @@ Essa logica (achar includes, validar so quem nao e include) e o que a feature de
 antes de qualquer `upload`/`publish`, recusando ou avisando antes de mandar algo que o
 Exchange aceitaria em silencio.
 
+## Implementado e testado ponta a ponta: os tres comandos, contra a conta de teste
+
+Os tres comandos (`pararepo raml`, `paradesign raml`, `publicardesign`) foram implementados
+em `src/mule_bridge/exchange.py` (as chamadas a `anypoint-cli-v4`) e `src/mule_bridge/cli.py`
+(os comandos e os dois menus: projeto do Design Center, versao do Exchange). Testado o ciclo
+completo contra a conta de teste, num repo isolado:
+
+1. `pararepo raml` num repo sem pasta de RAML: menu de projeto, menu de versao, baixou a
+   1.5.0 do Exchange, extraiu, gravou o pareamento, commitou a base — 24 arquivos.
+2. Edicao local (`echo "..." >> <arquivo>`) seguida de `pararepo raml` de novo, sem versao
+   nova disponivel: relatou "so seus, intocados: 1" e nao tocou no arquivo — confirmado que
+   a edicao sobreviveu.
+3. `paradesign raml`: upload da pasta (com a edicao local) para o Design Center — revisao
+   subiu, confirmado com `designcenter project list`.
+4. `publicardesign`: mostrou a versao publicada atual (1.5.0) antes de perguntar a nova,
+   publicou a 1.6.0 usando o `main` correto (lido do `exchange.json`) —
+   confirmado baixando o asset publicado e vendo a edicao local dentro do arquivo certo.
+
+Achados de implementacao registrados nas secoes anteriores (nao repetidos aqui): o `.cmd` do
+Windows precisa de `shutil.which`, `exchange asset list` exige `--organizationId` e filtro por
+`assetId`+`type` no cliente, `exchange asset download` baixa zip (extraido pelo modulo), e a
+mensagem "Could not determine raml's version" e mais uma variante do RAML mal formado.
+
+## Testado tambem: pasta local numa versao antiga, trazendo uma versao muito mais nova, com
+## edicao local pendente — o merge preserva as duas coisas
+
+Cenario pedido explicitamente para confirmar, alem do "so avancar uma versao": e se a pasta
+local estiver **varias versoes atras** da mais nova do Exchange, com uma edicao local ainda
+nao publicada, e o `pararepo raml` trouxer a versao mais nova (nao a proxima)?
+
+**Primeiro teste, com conteudo real do projeto de teste** (pasta na 1.3.0, Exchange na
+1.6.0, edicao local numa linha de `domain/veiculos.raml`): o resultado classificou o arquivo
+como "so seus, intocados", o que a princípio parecia suspeito — mas investigando, o
+conteudo real desse arquivo especifico nao mudou de 1.3.0 para 1.6.0 (a diferenca era so
+normalizacao de fim de linha, ja documentada na secao "O Design Center normaliza o fim de
+linha"). Ou seja: o algoritmo classificou certo, so nao testava o caso de mudanca real dos
+dois lados no mesmo arquivo.
+
+**Segundo teste, sintetico e controlado**, para isolar exatamente esse caso: pasta local
+na "1.0.0" com uma edicao numa linha (`id: integer  # MINHA EDICAO LOCAL`), Exchange com uma
+"1.1.0" que edita outra linha do mesmo arquivo (`linha3: string  # MUDANCA DO EXCHANGE`).
+Rodando `pararepo raml` e escolhendo a 1.1.0 direto (pulando qualquer intermediaria):
+
+```
+RAML 1.0.0 -> 1.1.0
+merge (seu + o que veio): 1 arquivo
+```
+
+Conteudo final do arquivo, confirmado:
+```
+      id: integer  # MINHA EDICAO LOCAL
+      linha2: string
+      linha3: string  # MUDANCA DO EXCHANGE NA VERSAO NOVA
+```
+
+**As duas edicoes convivem no arquivo final.** Confirma que a base do merge de tres pontas
+e sempre a versao real que a pasta local tem (lida do `exchange.json` dela via
+`versao_da_pasta`, nunca do `pom.xml` ou de qual versao foi escolhida no menu) — e que isso
+funciona corretamente mesmo pulando varias versoes de uma vez, nao so ao avancar uma.
+
+## Validacao de RAML antes de subir/publicar: implementada e testada
+
+A pendencia mais serio do desenho (secao "O RAML mal formado nao sempre falha — as vezes
+publica quebrado, em silencio") foi implementada em `src/mule_bridge/ramlvalidate.py`: a
+logica de "achar includes, validar so quem nao e include" que ja tinha sido validada
+manualmente nesta investigacao agora roda automaticamente antes de `paradesign raml`
+(contra a pasta local que vai subir) e `publicardesign` (contra o que esta de fato no
+Design Center agora, baixado numa pasta temporaria — nao a pasta local, que pode ja ter
+mudado desde o ultimo upload).
+
+**Testado contra a conta real, com o defeito documentado reintroduzido de proposito**
+(`# defeito antes do cabecalho` antes do `#%RAML 1.0` no `api.raml`): o `paradesign raml`
+recusou antes de chamar `upload_design_center`, com a mensagem apontando o arquivo e a
+primeira linha encontrada — nenhuma revisao nova subiu ao Design Center por essa tentativa
+(confirmado com `designcenter project list` antes e depois). Corrigindo o cabecalho, o
+mesmo comando completou o upload normalmente.
+
+**Zero falso positivo confirmado de novo**, desta vez com a validacao de verdade (nao so o
+algoritmo manual de antes): baixando o `teste-ponte` publicado (1.6.0, 24 arquivos, com
+`!include` de verdade em varios subdiretorios) e rodando `ramlvalidate.validar` contra ele,
+nenhum arquivo foi acusado.
+
 ## CORRECAO IMPORTANTE: a causa real da documentacao nao aparecer
 
 As secoes anteriores ("RAML mal formado nao sempre falha", "Documentacao nao e algo que se
@@ -653,6 +735,45 @@ naquele momento) usando so essa logica.
 **Para a feature:** e viavel automatizar "traga a versao mais atual do Exchange", mas isso e
 codigo a escrever (listar + escolher o primeiro + baixar) — nao e um comando unico que a
 plataforma ja oferece.
+
+## `exchange asset list` sem `--organizationId` traz o catalogo publico inteiro, nao so a org
+
+Testado ao implementar o cruzamento de menus: chamar `exchange asset list --output json` sem
+filtro nenhum devolve o catalogo publico do Exchange (conectores de outras organizacoes, tipo
+`mule-sap-s4hana-cloud-connector`), nao os assets da conta de teste. **`--organizationId` e
+obrigatorio na pratica**, mesmo a API/CLI nao marcando como flag exigida.
+
+Com `--organizationId <groupId>` funciona e traz certo, mas ainda faltam dois filtros que a
+feature precisa aplicar no cliente, porque a CLI nao tem flag para eles:
+
+- **Nao ha flag de `assetId` exato.** O unico filtro de texto e o argumento posicional
+  `SEARCHTEXT` (ex: `exchange asset list "teste-ponte" --organizationId ...`), que e busca
+  textual, nao igualdade — pode trazer nomes parecidos. A feature precisa filtrar de novo no
+  resultado, comparando `assetId` exato.
+- **`type` vem misturado.** Publicar um `rest-api` cria tambem o `extension` companheiro
+  (`mule-plugin-<nome>`, ver secao "O connector 'extension' que aparece sozinho") e os dois
+  aparecem juntos na mesma lista, intercalados por versao. A feature precisa filtrar
+  `type == "rest-api"` antes de montar o menu de versoes — senao um `mule-plugin-*` aparece
+  como se fosse uma versao do asset principal.
+
+**`--limit` tem default 10** (visto no `--help`) — para nao truncar o historico de versoes de
+um asset publicado mais de 10 vezes, a feature deve passar um `--limit` alto (ex: 100) ou
+paginar com `--offset`.
+
+**Campo de data no `designcenter project list`:** e `lastUpdatedDate`, nao `lastBackupDate`
+(esse ultimo e sempre `null` nos testes, e parece ser so para backup manual do Design Center,
+nao para "ultima edicao"). Confirmado com `-o json`:
+```json
+{"name": "teste-ponte", "lastUpdatedDate": "2026-08-22T16:40:27.181+00:00", "version": "29"}
+```
+
+## `exchange asset download` baixa um zip, nao a pasta extraida
+
+Testado ao implementar: `exchange asset download teste-ponte/1.3.0 destino/` cria
+`destino/<hash-sha256>.zip` — o nome do arquivo e um hash, imprevisivel, nao o nome do asset
+nem da versao. A feature precisa descobrir o nome do arquivo criado (unico arquivo na pasta
+apos o comando) e extrair o zip ela mesma com `zipfile`, do mesmo jeito que `reconcile.extrair`
+ja faz para o cache do Maven — nao ha opcao de pedir para a CLI extrair.
 
 ## Um projeto do Design Center por par: precisa escolher qual, sim
 
@@ -905,3 +1026,38 @@ anypoint-cli-v4 conf client_secret -d
 
 E revogar a Connected App em `Access Management > Connected Apps`. **Nao antes de terminar** —
 sem ela nenhum comando roda.
+
+## Implementacao: `subprocess.run` no Windows precisa resolver o `.cmd` via `shutil.which`
+
+Testado ao escrever `src/mule_bridge/exchange.py`: chamar `subprocess.run(["anypoint-cli-v4",
+...])` direto falha com `FileNotFoundError: [WinError 2] O sistema nao pode encontrar o
+arquivo especificado`, mesmo com o comando funcionando normalmente no terminal e presente no
+`PATH`.
+
+**Causa:** no Windows, `anypoint-cli-v4` (instalado via `npm install -g`) e um script `.cmd`,
+nao um `.exe` — `subprocess.run` sem `shell=True` nao aplica a resolucao de extensao do
+`PATHEXT` que o `cmd.exe`/PowerShell fazem sozinhos. O `reconcile.py` nunca bateu nesse
+problema porque so chama `git`, que tem `.exe` nativo.
+
+**Correcao, sem usar `shell=True`** (que abriria brecha de injecao se algum argumento vier de
+config/usuario): resolver o caminho completo com `shutil.which("anypoint-cli-v4")` antes de
+montar a lista de argumentos do `subprocess.run`. `shutil.which` aplica o `PATHEXT` do
+Windows e acha o `.cmd` corretamente. Testado contra a conta real: `designcenter project list`
+funcionou depois da correcao.
+
+## Mais uma mensagem de erro do `publish` com RAML mal formado: "Could not determine raml's version"
+
+Testado com `src/mule_bridge/exchange.py` (`publicar_exchange`), contra um arquivo `main`
+real que tinha as linhas extras antes do `#%RAML 1.0` (o mesmo defeito da secao "O RAML mal
+formado nao sempre falha"). Erro obtido:
+
+```
+Error: ... | Could not determine raml's version.
+```
+
+Mensagem diferente da vista antes ("Cannot parse document with specified vendor") para a
+mesma causa raiz — o parser da plataforma parece reagir de formas diferentes dependendo de
+como o cabecalho esta corrompido. Confirma, mais uma vez, que a feature deve validar o
+cabecalho `#%RAML` do `mainFile` antes de chamar `publish` (ver secao "O RAML mal formado nao
+sempre falha as vezes publica quebrado, em silencio"), porque a mensagem de erro da CLI nao e
+consistente nem clara sobre a causa.
