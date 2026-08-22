@@ -18,6 +18,7 @@ arquivos em conflito sao reportados para quem chamou decidir.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import tempfile
@@ -235,6 +236,26 @@ def caminho_no_cache(grupo: str, artefato: str, versao: str, m2: Path | None = N
     """Caminho do zip do RAML no cache local do Maven."""
     raiz = m2 or (Path.home() / ".m2" / "repository")
     return raiz / grupo / artefato / versao / f"{artefato}-{versao}-raml.zip"
+
+
+def versao_da_pasta(pasta: Path) -> str | None:
+    """A versao que a pasta do RAML de fato tem, lida do `exchange.json` dela.
+
+    E a unica fonte que fala do disco. O `pom.xml` diz para qual versao o projeto aponta,
+    que e outra coisa: a ferramenta pede para subir o pom a mao depois do merge, entao os
+    dois vivem discordando. Usar o pom como base do merge de tres pontas fazia as mudancas
+    ocorridas entre a versao da pasta e a do pom aparecerem como se fossem suas — conflito
+    em arquivo que voce nunca abriu.
+    """
+    alvo = pasta / "exchange.json"
+    if not alvo.is_file():
+        return None
+    try:
+        dados = json.loads(alvo.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return None
+    versao = dados.get("version") if isinstance(dados, dict) else None
+    return versao if isinstance(versao, str) and versao else None
 
 
 def versoes_no_cache(grupo: str, artefato: str, m2: Path | None = None) -> list[str]:

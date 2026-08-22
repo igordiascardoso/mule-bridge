@@ -136,7 +136,9 @@ para um commit à parte (`chore(raml): especificacao pedidos 1.1.55`). Sem isso,
 `git status` teria dezenas de arquivos de fora misturados com as suas duas linhas. O que
 envolve o seu trabalho fica sem commit, para você revisar.
 
-Depois, suba a versão no `pom.xml` — isso o comando não faz.
+Depois, suba a versão no `pom.xml` — isso o comando não faz. Se esquecer, nada quebra: o
+merge parte da versão que a **sua pasta** tem, não da que o `pom.xml` aponta. Pular versões
+(da `1.1.52` direto para a `1.1.55`) também funciona.
 
 ## Duas coisas que ele nunca faz
 

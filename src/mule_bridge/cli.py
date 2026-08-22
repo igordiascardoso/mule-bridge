@@ -677,6 +677,14 @@ def _juntar_raml(
             _criar_pasta_raml(cfg, grupo, artefato, dry_run)
             return
 
+        # A base do merge e a versao que a pasta REALMENTE tem, nao a que o pom aponta. Os
+        # dois discordam sempre que se pula versao ou se esquece de subir o pom (que este
+        # comando pede para fazer a mao) — e partir do pom fazia as mudancas ocorridas
+        # entre as duas aparecerem como suas, virando conflito em arquivo intocado.
+        versao_atual = (
+            reconcile.versao_da_pasta(cfg.work_root / cfg.raml.work) or versao_atual
+        )
+
         if versao_nova is None:
             versao_nova = _versao_alvo(cfg, grupo, artefato, versao_atual)
 
