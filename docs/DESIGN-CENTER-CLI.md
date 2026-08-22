@@ -875,21 +875,23 @@ que exigem autenticacao. Antes, o `pararepo raml` funcionava sem credencial (lia
 Studio ja tinha baixado). Isso muda a partir de agora: quem usar `pararepo raml` precisa da
 credencial configurada, mesmo que nunca vá usar upload/publish.
 
-### `ponte pararepo raml --enviar` (ou comando novo — decidir o nome exato na implementacao)
+### `ponte paradesign raml` — comando novo, nome decidido
 
-Sentido contrario: pega o RAML editado localmente no repo e faz **upload** pro Design
-Center — sem publicar no Exchange. So versiona no Design Center (a revisao sobe), do mesmo
-jeito que o `upload` testado nesta investigacao inteira.
+Sentido contrario ao `pararepo raml`: pega o RAML editado localmente no repo e faz **upload**
+pro Design Center — sem publicar no Exchange. So versiona no Design Center (a revisao sobe),
+do mesmo jeito que o `upload` testado nesta investigacao inteira.
 
-Passa pelo mesmo passo 1 acima (escolher o projeto do Design Center) — nao passa pelo passo 2
-(nao ha versao do Exchange a escolher, o destino e o Design Center).
+Segue o padrao `para<destino>` que ja existe (`parastudio`, `pararepo`) — o destino aqui e o
+Design Center, entao `paradesign`. Passa pelo mesmo passo 1 do `pararepo raml` (escolher o
+projeto do Design Center) — nao passa pelo passo 2 (nao ha versao do Exchange a escolher, o
+destino e o Design Center).
 
-### Publicar no Exchange — comando novo, separado
+### `ponte publicardesign` — comando novo, nome decidido
 
-O `publish`: pega o que esta no Design Center (a revisao atual) e cria uma versao nova no
-Exchange. Antes de confirmar, mostra a versao atual publicada (se houver) para o usuario
-saber o que esta prestes a virar historico — evita publicar por engano pensando que "sempre
-foi a primeira vez".
+Publica no Exchange o que esta no Design Center (a revisao atual), criando uma versao nova.
+Antes de confirmar, mostra a versao atual publicada (se houver) para o usuario saber o que
+esta prestes a virar historico — evita publicar por engano pensando que "sempre foi a
+primeira vez".
 
 Herda os riscos ja documentados: o Exchange valida o RAML e recusa cabecalho malformado, mas
 **nao valida contra mainFile errado** (publicacao silenciosa, documentacao vazia) — a feature
