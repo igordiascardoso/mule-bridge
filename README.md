@@ -9,7 +9,7 @@ pipx install git+https://github.com/igordiascardoso/mule-bridge
 
 O comando é **`ponte`**. Precisa de Python 3.10+.
 
-## Os oito comandos
+## Os seis jeitos de sincronizar
 
 ```
 /ponte parastudio raml      faz o Studio ler o RAML que você edita — não copia nada, só muda o pom do workspace
@@ -23,27 +23,22 @@ O comando é **`ponte`**. Precisa de Python 3.10+.
 /ponte pararepo             recusa: falta a palavra
 ```
 
-**`parastudio` escreve no workspace. `pararepo` escreve no seu repositório.** O outro lado é
-só lido.
-
-**O merge existe em dois comandos só: `pararepo raml` e `pararepo api`** — e ele grava sempre
-no seu repositório, nunca no workspace. Os outros copiam por cima: no `parastudio` isso é
-seguro, porque o destino é o workspace, que o Studio reconstrói; no `pararepo force` não,
-porque o destino é o seu código.
-
-Uma das três palavras — `raml`, `api`, `force` — é obrigatória, e elas não se combinam:
-`pararepo raml force` é recusado.
-
-A barra é a forma do Claude Code, com a [skill instalada](#com-agentes-de-ia). Em qualquer
-outro terminal são os mesmos comandos sem ela: `ponte pararepo api`.
-
-Mais três, que não sincronizam nada — cuidam do pareamento:
+## E três que cuidam do pareamento
 
 ```
 /ponte init      pareia o repo com um projeto do workspace (uma vez por projeto)
 /ponte status    diz se as pastas dos dois lados estão no lugar, e onde ficam
 /ponte caminho   reaponta o pareamento quando uma pasta saiu do lugar
 ```
+
+Dois comandos, três palavras: `raml`, `api`, `force` — **uma delas é obrigatória**, e elas não
+se combinam (`pararepo raml force` é recusado).
+
+**Só o `pararepo` faz merge.** O `parastudio` copia por cima, e pode: o destino é o workspace,
+que o Studio reconstrói. Já o `pararepo force` copia por cima do **seu** código — daí o ⚠️.
+
+A barra é a forma do Claude Code, com a [skill instalada](#com-agentes-de-ia). Em qualquer
+outro terminal são os mesmos comandos sem ela: `ponte pararepo api`.
 
 ## Começando
 
