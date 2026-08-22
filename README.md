@@ -12,28 +12,36 @@ O comando é **`ponte`**. Precisa de Python 3.10+.
 ## Os oito comandos
 
 ```
-ponte parastudio raml      faz o Studio ler o RAML que você edita
-ponte parastudio api       copia sua API para o workspace
-ponte parastudio force     copia RAML + API por cima do workspace
-ponte parastudio           recusa: falta a palavra
+/ponte parastudio raml      faz o Studio ler o RAML que você edita — não copia nada, só muda o pom do workspace
+/ponte parastudio api       copia sua API para o workspace, por cima e sem merge — o seu repo não é tocado
+/ponte parastudio force     copia RAML + API para o workspace, por cima e sem merge — o seu repo não é tocado
+/ponte parastudio           recusa: falta a palavra
 
-ponte pararepo raml        faz merge da versão nova do RAML com a sua, e grava
-ponte pararepo api         faz merge do que o Studio mudou com o que você mudou
-ponte pararepo force       ⚠️  copia RAML + API por cima do seu repo, sem merge
-ponte pararepo             recusa: falta a palavra
+/ponte pararepo raml        traz a versão nova do Exchange e faz MERGE na sua pasta de RAML — nada seu se perde
+/ponte pararepo api         traz o que o Studio mudou e faz MERGE na sua pasta da API — nada seu se perde
+/ponte pararepo force    ⚠️  copia RAML + API por cima do seu repo, SEM merge — apaga o que você não commitou
+/ponte pararepo             recusa: falta a palavra
 ```
 
-**`parastudio` escreve no workspace. `pararepo` escreve no seu repositório.**
+**`parastudio` escreve no workspace. `pararepo` escreve no seu repositório.** O outro lado é
+só lido.
 
-Três palavras: `raml`, `api`, `force` — uma é obrigatória. `raml` e `api` fazem merge e não
-perdem nada do seu trabalho; `force` copia por cima e pode apagá-lo, então raramente é o que
-você quer. Não se combinam: `pararepo raml force` é recusado.
+**O merge existe em dois comandos só: `pararepo raml` e `pararepo api`** — e ele grava sempre
+no seu repositório, nunca no workspace. Os outros copiam por cima: no `parastudio` isso é
+seguro, porque o destino é o workspace, que o Studio reconstrói; no `pararepo force` não,
+porque o destino é o seu código.
+
+Uma das três palavras — `raml`, `api`, `force` — é obrigatória, e elas não se combinam:
+`pararepo raml force` é recusado.
+
+A barra é a forma do Claude Code, com a [skill instalada](#com-agentes-de-ia). Em qualquer
+outro terminal são os mesmos comandos sem ela: `ponte pararepo api`.
 
 Mais dois:
 
 ```
-ponte init      pareia o repo com um projeto do workspace (uma vez por projeto)
-ponte status    mostra o que está pareado e quantos arquivos diferem
+/ponte init      pareia o repo com um projeto do workspace (uma vez por projeto)
+/ponte status    mostra o que está pareado e quantos arquivos diferem
 ```
 
 ## Começando
@@ -64,16 +72,16 @@ usual, `--force` para refazer.
 Editei o contrato e quero ver o Studio reagir:
 
 ```bash
-ponte parastudio raml     # o Studio passa a ler o RAML que você edita
+/ponte parastudio raml     # o Studio passa a ler o RAML que você edita
 # o Studio roda o scaffold e cria os flows novos
-ponte pararepo api        # traz os flows novos, sem perder seu código
+/ponte pararepo api        # traz os flows novos, sem perder seu código
 ```
 
 Saiu versão nova do RAML no Exchange:
 
 ```bash
-ponte pararepo raml       # merge com as suas edições
-ponte parastudio api      # manda para o Studio testar
+/ponte pararepo raml       # merge com as suas edições
+/ponte parastudio api      # manda para o Studio testar
 ```
 
 Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no disco
