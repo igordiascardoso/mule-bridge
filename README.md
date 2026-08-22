@@ -166,6 +166,11 @@ O contrário do fluxo 2: em vez de baixar do Exchange, o Studio passa a ler a **
 Não há scaffold aqui: o projeto saiu do Exchange, e é o `apikit` que relê a especificação
 local.
 
+**Para voltar ao Exchange** não há comando — mas nada foi destruído: a dependência original
+ficou comentada no `pom.xml` do workspace, ao lado da nova. Apague a que tem `systemPath` e
+descomente a que estava lá. (Ou apague o projeto no Studio e reimporte: o workspace é
+descartável.)
+
 ### 4. Mudei código, sem tocar no RAML
 
 Um flow, um `.java`, um `.dwl`.
