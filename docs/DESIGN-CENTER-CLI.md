@@ -719,10 +719,17 @@ duas informacoes lado a lado, incluindo o caso "nunca publicado":
 
 ```
 Qual projeto do Design Center?
-  1. teste-ponte      (modificado 22/08 13:40)   publicado: 1.4.0 (22/08 13:40)
-  2. outro-projeto    (modificado 22/08 14:17)   nunca publicado
+  1. teste-ponte      (modificado 22/08 13:40)   versao no Exchange: 1.4.0 (latest, 22/08 13:40)
+  2. outro-projeto    (modificado 22/08 14:17)   nunca publicado no Exchange
   3. outra opcao — eu digito para filtrar
 ```
+
+**O rotulo e explicito: "versao no Exchange"**, nao so "publicado" — para nao deixar
+ambiguo de onde vem esse numero, ja que a linha tambem mostra a data de modificacao do Design
+Center ao lado. E sempre a **ultima** versao publicada (`latest`) que aparece aqui — esta
+linha e so para ajudar a escolher o **projeto**; a escolha de qual versao trazer (a mais
+atual ou uma anterior) e um passo separado, depois, descrito na secao "Decisao de design:
+menu de versoes ao trazer do Exchange".
 
 **A data de publicacao vem de novo, testado agora com os dados reais da conta de teste:**
 o `exchange asset list --organizationId <org> --output json` traz `createdDate` por versao —
@@ -762,7 +769,7 @@ proximo, sempre com uma opcao de digitar de novo caso a sugestao esteja errada:
 ```
 Nenhum projeto com "tset-ponte".
 
-Voce quis dizer teste-ponte?  (modificado 22/08 13:40)   publicado: 1.4.0 (22/08 13:40)
+Voce quis dizer teste-ponte?  (modificado 22/08 13:40)   versao no Exchange: 1.4.0 (latest, 22/08 13:40)
   1. sim, e esse
   2. nao, deixa eu digitar de novo
 ```
@@ -818,7 +825,65 @@ Qual versao do RAML trazer?
 
 Escolhendo `4`, pergunta o texto da versao em seguida e busca ela direto no Exchange.
 
-## Limpeza depois dos testes
+## Decisao final: os tres comandos, e o que cada um faz
+
+Fechado como a feature se encaixa no vocabulario que o `ponte` ja tem (`parastudio`/
+`pararepo`, sempre `raml`/`api`/`force`). O ciclo completo, com direcao clara:
+
+```
+[editar local] --(pararepo raml, upload)--> [Design Center] --(publicar, exchange upload)--> [Exchange]
+                                                                                                    |
+      [de volta pro repo, com merge] <-------------------- pararepo raml (busca), agora direto -----
+```
+
+Sim, `pararepo raml` aparece nas duas pontas — **upload** (leva o local pro Design Center) e
+**busca** (traz o publicado no Exchange pro repo) sao dois comandos separados, nao a mesma
+chamada; ver abaixo por que nao virou duas palavras novas.
+
+### `ponte pararepo raml` — comportamento mudado: busca do Exchange direto, sem depender do Studio
+
+Ja existe, mas deixa de depender do usuario clicar "update" no Studio para descobrir versao
+nova — passa a consultar o Exchange diretamente. Dois passos, nesta ordem, porque o segundo
+depende do primeiro:
+
+1. **Escolher o projeto do Design Center** — mesmo a origem final sendo o Exchange, e o
+   projeto do Design Center que carrega o `exchange.json` com o `assetId` real (cruzar por
+   nome e armadilha confirmada, ver secao "Um projeto do Design Center por par"). Menu com
+   nome + data de modificacao (Design Center) + versao no Exchange, explicitamente rotulada
+   e sempre a `latest` (ver "Formato decidido para o menu" acima). Se so houver um projeto na
+   org, ainda pergunta e confirma — nunca assume.
+2. **Escolher a versao do Exchange daquele projeto** — menu de 4 opcoes ja aprovado (mais
+   atual + 2 anteriores + campo livre, ver "Decisao de design: menu de versoes"), usando o
+   `assetId` descoberto no passo 1.
+
+So depois desses dois passos o merge roda, preservando a edicao local — igual ao
+comportamento de hoje.
+
+**Pre-requisito novo:** exige a `anypoint-cli-v4` configurada (`client_id`/`client_secret`)
+para rodar — os dois passos acima chamam `designcenter project list` e `exchange asset list`,
+que exigem autenticacao. Antes, o `pararepo raml` funcionava sem credencial (lia o zip que o
+Studio ja tinha baixado). Isso muda a partir de agora: quem usar `pararepo raml` precisa da
+credencial configurada, mesmo que nunca vá usar upload/publish.
+
+### `ponte pararepo raml --enviar` (ou comando novo — decidir o nome exato na implementacao)
+
+Sentido contrario: pega o RAML editado localmente no repo e faz **upload** pro Design
+Center — sem publicar no Exchange. So versiona no Design Center (a revisao sobe), do mesmo
+jeito que o `upload` testado nesta investigacao inteira.
+
+Passa pelo mesmo passo 1 acima (escolher o projeto do Design Center) — nao passa pelo passo 2
+(nao ha versao do Exchange a escolher, o destino e o Design Center).
+
+### Publicar no Exchange — comando novo, separado
+
+O `publish`: pega o que esta no Design Center (a revisao atual) e cria uma versao nova no
+Exchange. Antes de confirmar, mostra a versao atual publicada (se houver) para o usuario
+saber o que esta prestes a virar historico — evita publicar por engano pensando que "sempre
+foi a primeira vez".
+
+Herda os riscos ja documentados: o Exchange valida o RAML e recusa cabecalho malformado, mas
+**nao valida contra mainFile errado** (publicacao silenciosa, documentacao vazia) — a feature
+deve checar o `mainFile` do `exchange.json` antes de chamar o `publish`, nao depois.
 
 ```
 anypoint-cli-v4 designcenter project delete teste-ponte
