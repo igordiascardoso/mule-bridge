@@ -31,17 +31,18 @@ O comando é **`ponte`**. Precisa de Python 3.10+.
 <details>
 <summary><b>Índice</b></summary>
 
-- [Os seis jeitos de sincronizar](#os-seis-jeitos-de-sincronizar)
+- [Os jeitos de sincronizar](#os-jeitos-de-sincronizar)
 - [E três que cuidam do pareamento](#e-três-que-cuidam-do-pareamento)
 - [Começando](#começando)
 - [Fluxos](#fluxos)
 - [O merge: trazer o novo sem perder o seu](#o-merge-trazer-o-novo-sem-perder-o-seu)
+- [Design Center e Exchange](#design-center-e-exchange)
 - [Duas coisas que ele nunca faz](#duas-coisas-que-ele-nunca-faz)
 - [Com agentes de IA](#com-agentes-de-ia)
 
 </details>
 
-## Os seis jeitos de sincronizar
+## Os jeitos de sincronizar
 
 ```
 ▸ PARA O STUDIO                                    escreve no workspace
@@ -57,13 +58,21 @@ O comando é **`ponte`**. Precisa de Python 3.10+.
 
 ▸ PARA O REPO                                   escreve no seu repositório
 
-  /ponte pararepo raml      traz a versão nova do Exchange e faz MERGE
+  /ponte pararepo raml      traz a versão publicada no Exchange e faz MERGE
                             na sua pasta de RAML — nada seu se perde
   /ponte pararepo api       traz o que o Studio mudou e faz MERGE
                             na sua pasta da API — nada seu se perde
   /ponte pararepo force  ⚠️  copia RAML + API por cima do seu repo, SEM merge
                             apaga o que você não commitou
   /ponte pararepo           recusa: falta a palavra
+
+
+▸ PARA O DESIGN CENTER / EXCHANGE          escreve no Anypoint, fora do seu repo
+
+  /ponte paradesign raml    envia o RAML da sua pasta para o Design Center
+                            só versiona lá — não publica no Exchange
+  /ponte publicardesign     publica no Exchange a revisão atual do Design Center
+                            mostra a versão publicada hoje antes de confirmar
 ```
 
 ## E três que cuidam do pareamento
@@ -75,7 +84,13 @@ O comando é **`ponte`**. Precisa de Python 3.10+.
 ```
 
 Dois comandos, três palavras: `raml`, `api`, `force` — **uma delas é obrigatória**, e elas não
-se combinam (`pararepo raml force` é recusado).
+se combinam (`pararepo raml force` é recusado). `paradesign` só aceita `raml`.
+
+> [!IMPORTANT]
+> **`paradesign raml` e `publicardesign` exigem a `anypoint-cli-v4` configurada** — são os
+> únicos comandos que falam com o Design Center e o Exchange. Veja
+> [Design Center e Exchange](#design-center-e-exchange) antes de usá-los. Os outros cinco
+> comandos (Studio ↔ repo) continuam funcionando sem isso.
 
 > [!IMPORTANT]
 > **Só o `pararepo` faz merge.** O `parastudio` copia por cima, e pode: o destino é o
@@ -119,8 +134,9 @@ usual, `--force` para refazer.
 
 ## Fluxos
 
-Cinco situações, na ordem em que aparecem. A coluna **Onde** diz se o passo é um comando no
-terminal ou algo que você faz no Studio.
+Seis situações, na ordem em que aparecem. A coluna **Onde** diz se o passo é um comando no
+terminal, algo que você faz no Studio, ou algo confirmado no próprio terminal (Design Center
+e Exchange).
 
 > [!IMPORTANT]
 > **O `parastudio` copia por cima.** Se o Studio gerou algo desde a última sincronização,
@@ -146,15 +162,16 @@ passo 2. A pasta nasce commitada como base: daí em diante o `git status` mostra
 
 ### 2. Saiu versão nova no Exchange
 
-O scaffold do Studio tem um gatilho só: **você fazer o update da versão.** Ele então mexe no
-`pom.xml`, no `.classpath` e no `application.xml` — inclusive criando flows para endpoints
-novos. Tudo no workspace.
+O `pararepo raml` consulta o Exchange direto — não depende de ninguém ter feito o update no
+Studio antes. O scaffold do Studio (que gera flows para endpoints novos) continua tendo um
+gatilho só: **você fazer o update da versão** ali, quando quiser que o Studio também
+acompanhe.
 
 | | Onde | O que |
 |---|---|---|
-| 1 | Studio | `Properties > Mule Project > APIs` → update da versão. Ele oferece o scaffold; ao confirmar, gera os flows |
-| 2 | terminal | `/ponte pararepo api` — traz o `application.xml` com os flows, em merge com o seu código |
-| 3 | terminal | `/ponte pararepo raml` — traz a especificação nova, em merge com as suas edições |
+| 1 | terminal | `/ponte pararepo raml` — escolhe o projeto do Design Center, depois a versão do Exchange, e traz a especificação em merge com as suas edições |
+| 2 | Studio | `Properties > Mule Project > APIs` → update da versão, se quiser o scaffold dos flows novos |
+| 3 | terminal | `/ponte pararepo api` — traz o `application.xml` com os flows, em merge com o seu código |
 
 O `pom.xml` do repo continua apontando para o Exchange. Suba a versão nele quando for
 commitar — o comando não faz isso.
@@ -196,6 +213,21 @@ Você renomeou a pasta, ou trocou de máquina e o workspace mudou de caminho.
 | 1 | terminal | `/ponte status` — mostra qual lado está `NAO ENCONTRADA` |
 | 2 | terminal | `/ponte caminho` — reaponta; `manter` é o default, então Enter passa pelos que estão certos |
 | 3 | terminal | `/ponte status` — confirma que os dois lados respondem |
+
+### 6. Editei o RAML e quero publicar uma versão nova
+
+Substitui o fluxo manual de copiar e colar arquivo por arquivo na interface do Design
+Center.
+
+| | Onde | O que |
+|---|---|---|
+| 1 | seu editor | você edita a pasta de RAML do repositório |
+| 2 | terminal | `/ponte paradesign raml` — escolhe o projeto e envia a pasta para o Design Center |
+| 3 | terminal | `/ponte publicardesign` — mostra a versão publicada hoje, confirma, e publica a nova |
+
+O `paradesign raml` só versiona no Design Center — quem quiser revisar antes de publicar
+pode subir várias vezes sem afetar o Exchange. O `publicardesign` é o único passo que cria
+uma versão nova, visível para quem consome a API.
 
 ## O merge: trazer o novo sem perder o seu
 
@@ -257,9 +289,9 @@ e roda o comando de novo.
 
 ### Dois detalhes do `pararepo raml`
 
-**A pasta do RAML não existe?** Não há merge a fazer, então ele extrai o zip da versão que o
-Studio usa para uma pasta nova na raiz do repositório (`pedidos-raml/`, do nome do artefato) e
-para. É o caso de um projeto recém-clonado.
+**A pasta do RAML não existe?** Não há merge a fazer, então ele baixa a versão do Exchange
+escolhida direto para uma pasta nova na raiz do repositório (`pedidos-raml/`, do nome do
+artefato) e para. É o caso de um projeto recém-clonado.
 
 **Ele commita parte sozinho.** Os arquivos que vieram do Exchange e você não tinha tocado vão
 para um commit à parte (`chore(raml): especificacao pedidos 1.1.55`). Sem isso, o seu
@@ -269,6 +301,35 @@ envolve o seu trabalho fica sem commit, para você revisar.
 Depois, suba a versão no `pom.xml` — isso o comando não faz. Se esquecer, nada quebra: o
 merge parte da versão que a **sua pasta** tem, não da que o `pom.xml` aponta. Pular versões
 (da `1.1.52` direto para a `1.1.55`) também funciona.
+
+## Design Center e Exchange
+
+`paradesign raml` e `publicardesign` falam com o Anypoint pela `anypoint-cli-v4` — os outros
+comandos não precisam disso.
+
+> [!IMPORTANT]
+> **Pré-requisito, uma vez por máquina:**
+> ```bash
+> node -v                                    # precisa ser 22 ou mais novo
+> npm install -g anypoint-cli-v4-public
+> anypoint-cli-v4 conf client_id SEU_ID
+> anypoint-cli-v4 conf client_secret SEU_SECRET
+> ```
+> A credencial (Connected App com os escopos `Design Center Developer` e `Exchange
+> Contributor`) fica cifrada na própria máquina, fora do `ponte` e fora do repositório. Sem
+> isso, `pararepo raml`, `paradesign raml` e `publicardesign` recusam com o erro da própria
+> `anypoint-cli-v4`.
+
+**Qual projeto do Design Center?** Se houver mais de um na sua organização, ele pergunta —
+digite um trecho do nome para filtrar, ou Enter para ver todos. Errou a digitação? Ele sugere
+o mais parecido e pede confirmação antes de seguir; nunca decide por conta própria.
+
+**Qual versão do Exchange?** No `pararepo raml`, depois de escolher o projeto, um menu com a
+mais atual, as duas anteriores, e a opção de digitar outra versão qualquer.
+
+**Antes de enviar ou publicar**, ele verifica se os arquivos `.raml` do projeto têm o
+cabeçalho certo (`#%RAML 1.0`) — o Exchange às vezes aceita e publica um RAML malformado sem
+avisar, então essa checagem acontece antes, não depois.
 
 ## Duas coisas que ele nunca faz
 
