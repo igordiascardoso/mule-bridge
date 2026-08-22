@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,30 @@ app = typer.Typer(
     help="Sync de projetos Mule entre a pasta de trabalho e o workspace do Anypoint Studio.",
     add_completion=False,
 )
+
+
+def _aceitar_utf8(stream) -> None:
+    """Passa o stream para UTF-8, para o conteudo do projeto nunca derrubar a saida.
+
+    No Windows a saida redirecionada (arquivo, pipe, log de CI, agente de IA) vem em
+    `cp1252`, que nao tem `→` nem `═`. Imprimir um arquivo em conflito que contenha um
+    deles levantava `UnicodeEncodeError` no meio do `_mostrar_conflito` — e o conflito
+    ficava sem como ser resolvido. O que se imprime aqui e o codigo do usuario, e ele pode
+    ter qualquer caractere; quem exibe e que tem de aguentar.
+    """
+    try:
+        stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        # Stream sem `reconfigure` — o buffer de teste do CliRunner, por exemplo. Nesses
+        # casos o encoding nao vem do console do Windows, entao nao ha o que consertar.
+        pass
+
+
+# `file=None` de proposito: o rich resolve `sys.stdout` a cada escrita, e nao aqui no
+# import. Prender o stream agora quebraria quem o substitui depois — o `CliRunner` dos
+# testes faz exatamente isso, e as mensagens iriam para o stream antigo.
+_aceitar_utf8(sys.stdout)
+_aceitar_utf8(sys.stderr)
 console = Console()
 err = Console(stderr=True)
 
