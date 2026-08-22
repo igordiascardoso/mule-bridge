@@ -11,4 +11,10 @@ dist/
 htmlcov/
 .mule-bridge.local.toml
 
+# Credencial nunca entra aqui: a do Anypoint (client_id/client_secret da Connected App)
+# vive fora do repositorio, e estas linhas sao a rede para o arquivo criado por engano.
+*.env
+.env
+anypoint*.json
+
 PLANEJAMENTO.md
