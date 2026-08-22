@@ -34,7 +34,7 @@ O comando é **`ponte`**. Precisa de Python 3.10+.
 - [Os seis jeitos de sincronizar](#os-seis-jeitos-de-sincronizar)
 - [E três que cuidam do pareamento](#e-três-que-cuidam-do-pareamento)
 - [Começando](#começando)
-- [O dia a dia](#o-dia-a-dia)
+- [Fluxos](#fluxos)
 - [O merge: trazer o novo sem perder o seu](#o-merge-trazer-o-novo-sem-perder-o-seu)
 - [Duas coisas que ele nunca faz](#duas-coisas-que-ele-nunca-faz)
 - [Com agentes de IA](#com-agentes-de-ia)
@@ -117,26 +117,87 @@ ponte init --api pedidos-api --raml pedidos-raml \
 `--raml nenhuma` se não houver RAML, `--studio-root` se o workspace não está num caminho
 usual, `--force` para refazer.
 
-## O dia a dia
+## Fluxos
 
-Editei o contrato e quero ver o Studio reagir:
+Seis situações, na ordem em que aparecem. A coluna **Onde** diz se o passo é um comando no
+terminal ou algo que você faz no Studio.
 
-```bash
-/ponte parastudio raml     # o Studio passa a ler o RAML que você edita
-# o Studio roda o scaffold e cria os flows novos
-/ponte pararepo api        # traz os flows novos, sem perder seu código
-```
+> [!IMPORTANT]
+> **O `parastudio` copia por cima.** Se o Studio gerou algo desde a última sincronização,
+> traga com `pararepo` antes de mandar — senão você sobrescreve o que ele fez.
 
-Saiu versão nova do RAML no Exchange:
+### 1. Primeira vez neste projeto
 
-```bash
-/ponte pararepo raml       # merge com as suas edições
-/ponte parastudio api      # manda para o Studio testar
-```
+Clonou o repo e não tem nada configurado.
+
+| | Onde | O que |
+|---|---|---|
+| 1 | terminal | `/ponte init` — pareia o repo com o projeto do workspace |
+| 2 | terminal | `/ponte pararepo raml` — extrai a especificação e cria a pasta do RAML |
+
+O `init` grava o `.mule-bridge.toml` e, se não houver pasta de RAML, já diz para rodar o
+passo 2. A pasta nasce commitada como base: daí em diante o `git status` mostra só o que
+**você** editar.
+
+### 2. Saiu versão nova no Exchange
+
+O scaffold do Studio tem um gatilho só: **você fazer o update da versão.** Ele então mexe no
+`pom.xml`, no `.classpath` e no `application.xml` — inclusive criando flows para endpoints
+novos. Tudo no workspace.
+
+| | Onde | O que |
+|---|---|---|
+| 1 | Studio | `Properties > Mule Project > APIs` → update da versão. Ele oferece o scaffold; ao confirmar, gera os flows |
+| 2 | terminal | `/ponte pararepo api` — traz o `application.xml` com os flows, em merge com o seu código |
+| 3 | terminal | `/ponte pararepo raml` — traz a especificação nova, em merge com as suas edições |
+
+O `pom.xml` do repo continua apontando para o Exchange. Suba a versão nele quando for
+commitar — o comando não faz isso.
+
+### 3. Quero editar o RAML e o Studio ler
+
+O contrário do fluxo 2: em vez de baixar do Exchange, o Studio passa a ler a **sua** pasta.
+
+| | Onde | O que |
+|---|---|---|
+| 1 | terminal | `/ponte parastudio raml` — reescreve o pom do workspace para apontar para a sua pasta |
+| 2 | seu editor | você edita o RAML; o Studio já lê dali |
+
+Não há scaffold aqui: o projeto saiu do Exchange, e é o `apikit` que relê a especificação
+local.
+
+### 4. Mudei código, sem tocar no RAML
+
+Um flow, um `.java`, um `.dwl`.
+
+| | Onde | O que |
+|---|---|---|
+| 1 | terminal | `/ponte parastudio api` — manda para o Studio testar |
 
 > [!TIP]
-> Depois de qualquer `parastudio` **não há passo extra** — o Studio detecta a mudança no
-> disco e redeploya sozinho.
+> Não há passo extra depois — o Studio detecta a mudança no disco e redeploya sozinho.
+
+### 5. Deu conflito
+
+Os dois lados mexeram no mesmo ponto do mesmo arquivo. Nada é gravado até você decidir.
+
+| | Onde | O que |
+|---|---|---|
+| 1 | terminal | ele mostra as duas versões e pergunta: `1` a sua, `2` a que veio, `3` eu escrevo |
+| 2 | terminal | você responde, ele grava o arquivo e segue para o próximo |
+
+É o único caso que te interrompe, e é raro — [como ele pergunta, e o que acontece sem
+terminal](#quando-ele-pergunta).
+
+### 6. Uma pasta saiu do lugar
+
+Você renomeou a pasta, ou trocou de máquina e o workspace mudou de caminho.
+
+| | Onde | O que |
+|---|---|---|
+| 1 | terminal | `/ponte status` — mostra qual lado está `NAO ENCONTRADA` |
+| 2 | terminal | `/ponte caminho` — reaponta; `manter` é o default, então Enter passa pelos que estão certos |
+| 3 | terminal | `/ponte status` — confirma que os dois lados respondem |
 
 ## O merge: trazer o novo sem perder o seu
 
@@ -217,8 +278,9 @@ merge parte da versão que a **sua pasta** tem, não da que o `pom.xml` aponta. 
   precisa mudar, e essa reescrita acontece **só no workspace**. Aqui ele segue apontando para
   o Exchange, que é o que vai para o remoto.
 - **Apagar arquivo por conta própria.** Nenhum dos comandos remove nada: um arquivo que
-  existe só no repo continua lá, e um que existe só no workspace também. Se você apagou um
-  flow no repo, apague no workspace do Studio também — senão ele segue rodando lá.
+  existe só no repo continua lá, e um que existe só no workspace também — é assim que
+  `.classpath` e `.project`, que o Studio gera para si, sobrevivem a um `parastudio`. Se você
+  apagou um flow no repo, apague no workspace do Studio também — senão ele segue rodando lá.
 
 Nem `.git`, `target`, `.mule` ou `.settings` são sincronizados — é lista configurável no
 `.mule-bridge.toml`.
