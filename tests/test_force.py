@@ -239,7 +239,7 @@ def projeto(tmp_path, monkeypatch):
 
 
 def _rodar(projeto, *args):
-    entrada = "1\n1\n" if args[:1] == ("raml",) else None
+    entrada = "\n1\n1\n" if args[:1] == ("raml",) else None
     return runner.invoke(
         app, ["pararepo", *args, "-w", str(projeto["work"])], input=entrada
     )

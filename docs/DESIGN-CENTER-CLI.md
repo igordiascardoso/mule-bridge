@@ -1061,3 +1061,30 @@ como o cabecalho esta corrompido. Confirma, mais uma vez, que a feature deve val
 cabecalho `#%RAML` do `mainFile` antes de chamar `publish` (ver secao "O RAML mal formado nao
 sempre falha as vezes publica quebrado, em silencio"), porque a mensagem de erro da CLI nao e
 consistente nem clara sobre a causa.
+
+## Filtro por texto e sugestao por semelhanca no menu de projeto: implementado
+
+A pendencia identificada em code review (o design ja previa isso na secao "Filtro por texto
+parcial", mas a primeira implementacao do menu mostrava a lista inteira sem filtro) foi
+fechada em `_filtrar_e_escolher` (`src/mule_bridge/cli.py`), usada por
+`_escolher_projeto_design_center`:
+
+1. Pergunta um trecho do nome antes de mostrar a lista (`Digite um trecho do nome do
+   projeto (ou Enter para ver todos)`) — Enter vazio preserva o comportamento antigo de
+   mostrar tudo.
+2. Filtro por substring, case-insensitive.
+3. Se a busca exata nao achar nada, `difflib.get_close_matches` sugere o nome mais parecido
+   e pede confirmacao explicita (`Voce quis dizer <nome>? 1. sim 2. nao, deixa eu digitar
+   de novo`) — nunca autocompleta sozinho.
+4. Recusando a sugestao, volta a pedir o filtro (recursao), nao aborta o comando.
+
+**Testado contra a conta real** com o mesmo typo do design original (`tset-ponte`): a busca
+por substring nao achou nada, a sugestao por semelhanca acertou `teste-ponte`, a confirmacao
+funcionou, e o fluxo seguiu normalmente até criar a pasta do RAML. O filtro por substring
+tambem foi testado (`outro` reduziu a lista para so `outro-projeto` antes do menu de
+escolha).
+
+Isso muda a sequencia de entrada esperada em qualquer teste que simule `pararepo raml`,
+`paradesign raml` ou `publicardesign` via `CliRunner`: agora e preciso um `\n` extra
+(Enter no filtro) antes do numero que escolhe o projeto — testes antigos que simulavam so
+`"1\n1\n"` passaram a `"\n1\n1\n"`.

@@ -92,7 +92,7 @@ def test_dry_run_nao_cria_a_pasta(cenario, monkeypatch):
     result = runner.invoke(
         app,
         ["pararepo", "raml", "-w", str(cenario["work"]), "--dry-run"],
-        input="1\n1\n",
+        input="\n1\n1\n",
     )
 
     assert result.exit_code == 0, result.output
@@ -110,7 +110,7 @@ def test_cria_a_pasta_com_a_versao_escolhida(cenario, monkeypatch):
     )
 
     result = runner.invoke(
-        app, ["pararepo", "raml", "-w", str(cenario["work"])], input="1\n1\n"
+        app, ["pararepo", "raml", "-w", str(cenario["work"])], input="\n1\n1\n"
     )
 
     assert result.exit_code == 0, result.output
@@ -124,7 +124,7 @@ def test_grava_o_pareamento_da_pasta_criada(cenario, monkeypatch):
         monkeypatch, versoes=["1.1.55"], conteudo={"api.raml": "#%RAML 1.0\ntitle: X\n"}
     )
 
-    runner.invoke(app, ["pararepo", "raml", "-w", str(cenario["work"])], input="1\n1\n")
+    runner.invoke(app, ["pararepo", "raml", "-w", str(cenario["work"])], input="\n1\n1\n")
 
     cfg = config.load(cenario["work"])
     assert cfg.raml is not None
@@ -141,7 +141,7 @@ def test_nao_sobrescreve_pasta_existente_fora_da_config(cenario, monkeypatch):
     (pasta / "api.raml").write_text("#%RAML 1.0\ntitle: MEU TRABALHO\n", encoding="utf-8")
 
     result = runner.invoke(
-        app, ["pararepo", "raml", "-w", str(cenario["work"])], input="1\n1\n"
+        app, ["pararepo", "raml", "-w", str(cenario["work"])], input="\n1\n1\n"
     )
 
     assert "MEU TRABALHO" in (pasta / "api.raml").read_text(encoding="utf-8"), (

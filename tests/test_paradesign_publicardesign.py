@@ -108,7 +108,7 @@ def test_paradesign_faz_upload(cenario, monkeypatch):
         exchange, "upload_design_center", lambda nome, pasta: chamadas.append((nome, pasta))
     )
 
-    result = runner.invoke(app, ["paradesign", "raml", "-w", str(cenario["work"])], input="1\n")
+    result = runner.invoke(app, ["paradesign", "raml", "-w", str(cenario["work"])], input="\n1\n")
 
     assert result.exit_code == 0, result.output
     assert chamadas == [("pedidos", cenario["raml"])]
@@ -123,7 +123,7 @@ def test_paradesign_dry_run_nao_envia(cenario, monkeypatch):
     )
 
     result = runner.invoke(
-        app, ["paradesign", "raml", "--dry-run", "-w", str(cenario["work"])], input="1\n"
+        app, ["paradesign", "raml", "--dry-run", "-w", str(cenario["work"])], input="\n1\n"
     )
 
     assert result.exit_code == 0, result.output
@@ -141,7 +141,7 @@ def test_paradesign_recusa_raml_sem_cabecalho(cenario, monkeypatch):
         exchange, "upload_design_center", lambda nome, pasta: chamadas.append((nome, pasta))
     )
 
-    result = runner.invoke(app, ["paradesign", "raml", "-w", str(cenario["work"])], input="1\n")
+    result = runner.invoke(app, ["paradesign", "raml", "-w", str(cenario["work"])], input="\n1\n")
 
     assert result.exit_code != 0, result.output
     assert "cabecalho" in result.output.lower() or "#%RAML" in result.output
@@ -163,7 +163,7 @@ def test_paradesign_nao_falso_positivo_em_includes(cenario, monkeypatch):
         exchange, "upload_design_center", lambda nome, pasta: chamadas.append((nome, pasta))
     )
 
-    result = runner.invoke(app, ["paradesign", "raml", "-w", str(cenario["work"])], input="1\n")
+    result = runner.invoke(app, ["paradesign", "raml", "-w", str(cenario["work"])], input="\n1\n")
 
     assert result.exit_code == 0, result.output
     assert len(chamadas) == 1
@@ -184,7 +184,7 @@ def test_publicardesign_publica_com_o_main_correto(cenario, monkeypatch):
     )
 
     result = runner.invoke(
-        app, ["publicardesign", "-w", str(cenario["work"])], input="1\n1.1.0\n"
+        app, ["publicardesign", "-w", str(cenario["work"])], input="\n1\n1.1.0\n"
     )
 
     assert result.exit_code == 0, result.output
@@ -204,7 +204,7 @@ def test_publicardesign_dry_run_nao_publica(cenario, monkeypatch):
     result = runner.invoke(
         app,
         ["publicardesign", "--dry-run", "-w", str(cenario["work"])],
-        input="1\n1.1.0\n",
+        input="\n1\n1.1.0\n",
     )
 
     assert result.exit_code == 0, result.output
@@ -240,7 +240,7 @@ def test_publicardesign_recusa_raml_sem_cabecalho_no_design_center(cenario, monk
         exchange, "publicar_exchange", lambda *a, **kw: chamadas.append((a, kw))
     )
 
-    result = runner.invoke(app, ["publicardesign", "-w", str(cenario["work"])], input="1\n")
+    result = runner.invoke(app, ["publicardesign", "-w", str(cenario["work"])], input="\n1\n")
 
     assert result.exit_code != 0, result.output
     assert "cabecalho" in result.output.lower() or "#%RAML" in result.output
@@ -260,7 +260,7 @@ def test_publicardesign_sem_projeto_nunca_publicado(cenario, monkeypatch):
         exchange, "baixar_projeto_design_center", fake_baixar_projeto_sem_exchange_json
     )
 
-    result = runner.invoke(app, ["publicardesign", "-w", str(cenario["work"])], input="1\n")
+    result = runner.invoke(app, ["publicardesign", "-w", str(cenario["work"])], input="\n1\n")
 
     assert result.exit_code != 0, result.output
     assert "paradesign raml" in result.output

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import shutil
 import sys
 import tempfile
@@ -145,6 +146,72 @@ def _baixar_para_ler_exchange_json(projeto_id: str, nome: str) -> dict | None:
             return None
 
 
+def _filtrar_por_texto(nomes: list[str], texto: str) -> list[int]:
+    """Indices dos nomes que contem `texto`, sem diferenciar maiusculas/minusculas."""
+    alvo = texto.strip().lower()
+    return [i for i, n in enumerate(nomes) if alvo in n.lower()]
+
+
+def _sugerir_por_semelhanca(nomes: list[str], texto: str) -> int | None:
+    """Indice do nome mais parecido com `texto`, ou None se nada for parecido o bastante.
+
+    Existe porque o filtro por substring falha exatamente no caso mais comum de erro de
+    digitacao — letras trocadas — que "contem o texto" nao tolera (ver
+    docs/DESIGN-CENTER-CLI.md, "Decisao: alem do filtro exato, sugerir por semelhanca").
+    """
+    parecidos = difflib.get_close_matches(texto.strip().lower(), [n.lower() for n in nomes], n=1)
+    if not parecidos:
+        return None
+    return [n.lower() for n in nomes].index(parecidos[0])
+
+
+def _filtrar_e_escolher(
+    titulo_busca: str, titulo_escolha: str, nomes: list[str], labels: list[str], *, flag: str
+) -> int:
+    """Pede um trecho do nome para filtrar antes de escolher — essencial com muitos projetos.
+
+    Fluxo (ver docs/DESIGN-CENTER-CLI.md, "Filtro por texto parcial" e "Decisao: alem do
+    filtro exato, sugerir por semelhanca"): texto vazio mostra tudo; um trecho que bate
+    filtra por substring; um trecho que nao bate em nada tenta uma sugestao por
+    semelhanca (tolera erro de digitacao), sempre pedindo confirmacao — nunca autocompleta
+    sozinho. Devolve o indice em `nomes`/`labels` da opcao escolhida.
+    """
+    try:
+        texto = typer.prompt(titulo_busca, default="", show_default=False)
+    except (typer.Abort, EOFError, OSError) as exc:
+        raise NonInteractiveError(
+            f"{titulo_busca} — nao ha terminal interativo para perguntar.\n"
+            f"Repita o comando escolhendo pela flag, ex: {flag} {nomes[0]}"
+        ) from exc
+
+    if not texto.strip():
+        idx = _choose(titulo_escolha, labels, flag=flag)
+        return idx
+
+    candidatos = _filtrar_por_texto(nomes, texto)
+    if candidatos:
+        idx_filtrado = _choose(titulo_escolha, [labels[i] for i in candidatos], flag=flag)
+        return candidatos[idx_filtrado]
+
+    sugestao = _sugerir_por_semelhanca(nomes, texto)
+    if sugestao is None:
+        raise ConfigError(
+            f"Nenhum projeto com {texto!r}, e nada parecido para sugerir.\n"
+            f"Opcoes: {', '.join(nomes)}"
+        )
+
+    console.print(f"\n[yellow]Nenhum projeto com {texto!r}.[/]")
+    idx = _choose(
+        f"Voce quis dizer {nomes[sugestao]}?  ({labels[sugestao]})",
+        ["sim, e esse", "nao, deixa eu digitar de novo"],
+        flag=flag,
+        default=1,
+    )
+    if idx == 0:
+        return sugestao
+    return _filtrar_e_escolher(titulo_busca, titulo_escolha, nomes, labels, flag=flag)
+
+
 def _escolher_projeto_design_center() -> ProjetoEscolhido:
     """Lista os projetos do Design Center e pede qual usar — nunca cruza por nome.
 
@@ -152,6 +219,9 @@ def _escolher_projeto_design_center() -> ProjetoEscolhido:
     mostrar a versao do Exchange no menu, sempre rotulada explicitamente como tal e
     sempre a mais recente (ver docs/DESIGN-CENTER-CLI.md, "Formato decidido para o menu").
     Essa linha e so para ajudar a escolher o projeto — nunca decide nada por conta propria.
+
+    Antes de mostrar a lista, pede um trecho do nome para filtrar — com muitos projetos na
+    org, digitar a lista inteira nao escala (o motivo original de ter desenhado isso).
     """
     projetos = exchange.listar_projetos_design_center()
     if not projetos:
@@ -178,7 +248,14 @@ def _escolher_projeto_design_center() -> ProjetoEscolhido:
             )
         labels.append(f"{p.nome}  ({rotulo_dc})   {rotulo_ex}")
 
-    idx = _choose("Qual projeto do Design Center?", labels, flag="--designcenter")
+    nomes = [p.nome for p in projetos]
+    idx = _filtrar_e_escolher(
+        "Digite um trecho do nome do projeto (ou Enter para ver todos)",
+        "Qual projeto do Design Center?",
+        nomes,
+        labels,
+        flag="--designcenter",
+    )
     escolhido, info = projetos[idx], infos[idx]
 
     return ProjetoEscolhido(

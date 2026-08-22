@@ -42,7 +42,8 @@ BASE_RAML = "#%RAML 1.0\ntitle: Pedidos\nversion: v1\ntypes:\n  Pedido:\n  Item:
 GROUP_ID = "grupo-org-teste"
 #: Entrada dos dois menus novos do `pararepo raml` (projeto do Design Center, depois
 #: versao do Exchange) — vem sempre antes do que o teste responde para o merge/conflito.
-ESCOLHE_PROJETO_E_VERSAO_NOVA = "1\n1\n"
+#: linha vazia ("Enter para ver todos") no novo filtro por texto, depois a escolha 1/1.
+ESCOLHE_PROJETO_E_VERSAO_NOVA = "\n1\n1\n"
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:

@@ -146,8 +146,8 @@ def test_a_base_do_merge_e_a_versao_da_pasta_e_nao_a_do_pom(tres_versoes):
     """
     work = tres_versoes["work"]
 
-    # 1 = unico projeto do Design Center; 1 = mais atual (1.1.54) no menu de versoes.
-    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="1\n1\n")
+    # "" = Enter no filtro de texto (ve todos); 1 = unico projeto; 1 = mais atual (1.1.54).
+    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="\n1\n1\n")
 
     assert "1.1.52 -> 1.1.54" in result.output, (
         f"a base deveria ser a da pasta (1.1.52), nao a do pom (1.1.54):\n{result.output}"
@@ -164,7 +164,7 @@ def test_edicao_local_sobrevive_ao_salto_de_versao(tres_versoes):
     meu = work / "pedidos-raml" / "api.raml"
     meu.write_text(meu.read_text(encoding="utf-8") + "\n/meu-endpoint:\n  get:\n", encoding="utf-8")
 
-    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="1\n1\n")
+    result = runner.invoke(app, ["pararepo", "raml", "-w", str(work)], input="\n1\n1\n")
 
     assert result.exit_code == 0, f"a minha edicao nao colide com nada:\n{result.output}"
     assert "/meu-endpoint" in meu.read_text(encoding="utf-8"), "a edicao local foi perdida"
